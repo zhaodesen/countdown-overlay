@@ -1,0 +1,338 @@
+:root {
+  --hue: 190;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.overlay-body {
+  background: radial-gradient(
+    130% 130% at 50% 50%,
+    rgba(0, 0, 0, 0) 30%,
+    rgba(2, 4, 10, 0.45) 100%
+  );
+  cursor: none;
+  user-select: none;
+}
+
+/* ---- Canvas layers ---- */
+.bg-canvas,
+.fx-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.bg-canvas {
+  z-index: 0;
+}
+.fx-canvas {
+  z-index: 2;
+}
+
+/* Smoke sits above the number (z3) so it can hide then reveal the digits. */
+.smoke-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* ---- Impact flash ---- */
+.flash {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 255, 255, 0.9),
+    rgba(255, 255, 255, 0.2) 35%,
+    transparent 70%
+  );
+}
+
+/* ---- Center stage ---- */
+.stage {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.number {
+  --ghost: 0;
+  --num-font: "Orbitron", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: var(--num-font);
+  font-weight: 900;
+  font-size: min(46vh, 46vw);
+  line-height: 1;
+  color: hsl(var(--hue), 100%, 92%);
+  text-shadow: 0 0 calc(20px + var(--ghost) * 30px)
+      hsla(var(--hue), 100%, 60%, calc(0.7 + var(--ghost) * 0.3)),
+    0 0 calc(60px + var(--ghost) * 80px) hsla(var(--hue), 100%, 55%, 0.7),
+    calc(var(--ghost) * 14px) 0 28px hsla(var(--hue), 100%, 60%, 0.35),
+    calc(var(--ghost) * -14px) 0 28px hsla(calc(var(--hue) + 30), 100%, 60%, 0.35);
+  will-change: transform, filter, opacity;
+  transform: translateZ(0);
+}
+
+.glow {
+  position: absolute;
+  width: min(60vh, 60vw);
+  height: min(60vh, 60vw);
+  border-radius: 50%;
+  background: radial-gradient(circle, hsla(var(--hue), 100%, 60%, 0.55), transparent 65%);
+  filter: blur(20px);
+  opacity: 0;
+  will-change: transform, opacity;
+  z-index: -1;
+}
+
+.shockwave {
+  position: absolute;
+  width: min(34vh, 34vw);
+  height: min(34vh, 34vw);
+  border-radius: 50%;
+  border: 4px solid hsla(var(--hue), 100%, 70%, 0.9);
+  box-shadow: 0 0 40px hsla(var(--hue), 100%, 60%, 0.6),
+    inset 0 0 40px hsla(var(--hue), 100%, 60%, 0.4);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+/* ---- Top decorations (hue-driven) ---- */
+.top-fx {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  z-index: 6;
+  pointer-events: none;
+}
+.beam {
+  position: absolute;
+  top: 46px;
+  left: 50%;
+  width: 70vw;
+  height: 3px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--hue), 100%, 65%),
+    #fff,
+    hsl(var(--hue), 100%, 65%),
+    transparent
+  );
+  box-shadow: 0 0 18px hsla(var(--hue), 100%, 60%, 0.9);
+  animation: beamPulse 0.9s ease-in-out infinite;
+}
+@keyframes beamPulse {
+  0%, 100% { opacity: 0.55; transform: translateX(-50%) scaleX(0.92); }
+  50% { opacity: 1; transform: translateX(-50%) scaleX(1); }
+}
+.scanline {
+  position: absolute;
+  top: 0;
+  left: -30%;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, hsla(var(--hue), 100%, 70%, 0.18), transparent);
+  animation: scan 1.6s linear infinite;
+}
+@keyframes scan {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(440%); }
+}
+.banner {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 18px;
+  border: 1px solid hsla(var(--hue), 100%, 65%, 0.5);
+  border-radius: 4px;
+  background: hsla(var(--hue), 80%, 10%, 0.35);
+  backdrop-filter: blur(2px);
+}
+.banner-text {
+  font-family: "Orbitron", "Segoe UI", system-ui, monospace;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 4px;
+  color: hsl(var(--hue), 100%, 80%);
+  text-shadow: 0 0 10px hsla(var(--hue), 100%, 60%, 0.9);
+  animation: flicker 1.3s steps(2, jump-none) infinite;
+}
+@keyframes flicker {
+  0%, 92%, 100% { opacity: 1; }
+  94% { opacity: 0.35; }
+  96% { opacity: 1; }
+}
+
+/* =====================================================================
+   THEME SKINS  (bodyClass)
+   ===================================================================== */
+
+/* 赛博朋克 — neon glitch */
+.t-cyberpunk {
+  background: radial-gradient(130% 130% at 50% 50%, rgba(20, 0, 25, 0) 25%, rgba(10, 0, 20, 0.6) 100%);
+}
+.t-cyberpunk .number {
+  --num-font: "Orbitron", "Segoe UI", monospace;
+  color: #fff;
+  text-shadow: 3px 0 0 #ff2e9a, -3px 0 0 #15e1ff,
+    0 0 calc(24px + var(--ghost) * 40px) #ff2e9a,
+    0 0 calc(60px + var(--ghost) * 80px) #15e1ff;
+}
+
+/* 科技 HUD */
+.t-tech {
+  background: radial-gradient(130% 130% at 50% 50%, rgba(0, 12, 24, 0) 25%, rgba(0, 14, 30, 0.55) 100%);
+}
+.t-tech .number {
+  --num-font: "Orbitron", "Segoe UI", sans-serif;
+  color: #d6f6ff;
+}
+
+/* 武侠 — gold calligraphy */
+.t-wuxia {
+  background: radial-gradient(130% 130% at 50% 50%, rgba(30, 12, 6, 0.15) 20%, rgba(20, 6, 3, 0.55) 100%);
+}
+.t-wuxia .number {
+  --num-font: "STKaiti", "KaiTi", "楷体", "Songti SC", serif;
+  color: #ffe6a8;
+  text-shadow: 0 0 calc(18px + var(--ghost) * 30px) #e8b84b,
+    0 0 calc(50px + var(--ghost) * 60px) #b3151b, 2px 2px 6px rgba(80, 0, 0, 0.6);
+}
+.t-wuxia .banner-text {
+  font-family: "STKaiti", "KaiTi", serif;
+  letter-spacing: 8px;
+}
+
+/* 水墨 — ink on rice paper */
+.t-ink {
+  background: radial-gradient(130% 130% at 50% 45%, rgba(245, 243, 233, 0.62), rgba(228, 224, 210, 0.5) 100%);
+}
+.t-ink .number {
+  --num-font: "STKaiti", "KaiTi", "楷体", serif;
+  color: #161616;
+  text-shadow: calc(var(--ghost) * 10px) calc(var(--ghost) * 6px) 12px rgba(0, 0, 0, 0.4),
+    0 0 calc(var(--ghost) * 8px) rgba(0, 0, 0, 0.5);
+}
+.t-ink .top-fx { display: none; }
+
+/* 卡通 — bouncy candy */
+.t-cartoon {
+  background: radial-gradient(130% 130% at 50% 50%, rgba(255, 240, 250, 0) 30%, rgba(60, 40, 90, 0.4) 100%);
+}
+.t-cartoon .number {
+  --num-font: "Comic Sans MS", "Chalkboard SE", "Baloo", system-ui, sans-serif;
+  color: #fff;
+  -webkit-text-stroke: 8px #2b2b5a;
+  paint-order: stroke fill;
+  text-shadow: 0 8px 0 rgba(0, 0, 0, 0.25),
+    0 0 calc(20px + var(--ghost) * 24px) hsla(var(--hue), 100%, 65%, 0.9);
+}
+.t-cartoon .banner-text { font-family: "Comic Sans MS", sans-serif; }
+
+/* 烈焰 — fire */
+.t-flame {
+  background: radial-gradient(120% 120% at 50% 100%, rgba(60, 10, 0, 0.5), rgba(10, 0, 0, 0.45) 70%);
+}
+.t-flame .number {
+  --num-font: "Orbitron", "Segoe UI", sans-serif;
+  color: #fff0c8;
+  text-shadow: 0 0 calc(20px + var(--ghost) * 36px) #ff7b00,
+    0 0 calc(48px + var(--ghost) * 70px) #ff2e00,
+    0 -6px 30px #ffcf3a;
+}
+
+/* 冰霜 — ice */
+.t-frost {
+  background: radial-gradient(130% 130% at 50% 50%, rgba(180, 225, 255, 0.08) 20%, rgba(10, 30, 60, 0.5) 100%);
+}
+.t-frost .number {
+  --num-font: "Orbitron", "Segoe UI", sans-serif;
+  color: #eafaff;
+  text-shadow: 0 0 calc(18px + var(--ghost) * 30px) #9ad6ff,
+    0 0 calc(50px + var(--ghost) * 64px) #3aa0ff, 0 2px 8px rgba(255, 255, 255, 0.6);
+}
+
+/* 星空 — cosmic */
+.t-galaxy {
+  background: radial-gradient(130% 130% at 50% 50%, rgba(20, 10, 50, 0) 20%, rgba(6, 2, 24, 0.6) 100%);
+}
+.t-galaxy .number {
+  --num-font: "Orbitron", "Segoe UI", sans-serif;
+  color: #f0e9ff;
+  text-shadow: 0 0 calc(20px + var(--ghost) * 34px) #b48bff,
+    0 0 calc(54px + var(--ghost) * 70px) #7b5cff;
+}
+
+/* 复古街机 — CRT */
+.t-retro {
+  background: rgba(0, 12, 0, 0.5);
+}
+.t-retro .number {
+  --num-font: "Courier New", monospace;
+  color: #39ff14;
+  text-shadow: 0 0 calc(14px + var(--ghost) * 22px) #39ff14, 2px 2px 0 #0a5d0a;
+  letter-spacing: 2px;
+}
+.t-retro .banner-text { font-family: "Courier New", monospace; }
+.t-retro::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.28) 3px,
+    rgba(0, 0, 0, 0.28) 4px
+  );
+}
+
+/* 黄金庆典 — gold */
+.t-gold {
+  background: radial-gradient(130% 130% at 50% 50%, rgba(40, 30, 0, 0) 25%, rgba(25, 15, 0, 0.55) 100%);
+}
+.t-gold .number {
+  --num-font: "Times New Roman", "Songti SC", serif;
+  color: #fff4c2;
+  text-shadow: 0 0 calc(18px + var(--ghost) * 30px) #ffd700,
+    0 0 calc(50px + var(--ghost) * 64px) #ff8c00, 0 3px 6px rgba(120, 80, 0, 0.6);
+}
+
+/* 烟雾 — realistic smoke (monochrome, clean) */
+.t-smoke {
+  background: radial-gradient(130% 130% at 50% 40%, rgba(30, 32, 38, 0.35) 20%, rgba(8, 9, 12, 0.62) 100%);
+}
+.t-smoke .number {
+  --num-font: "Helvetica Neue", "Segoe UI", "PingFang SC", system-ui, sans-serif;
+  color: #f2f5fa;
+  text-shadow: 0 0 calc(16px + var(--ghost) * 26px) rgba(255, 255, 255, 0.55),
+    0 0 calc(44px + var(--ghost) * 56px) rgba(170, 190, 220, 0.45),
+    0 4px 18px rgba(0, 0, 0, 0.6);
+}
+.t-smoke .top-fx { display: none; }

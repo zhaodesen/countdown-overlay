@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>倒计时 Overlay · 控制台</title>
+    <link rel="stylesheet" href="/src/settings/style.css" />
+  </head>
+  <body>
+    <!-- ===== Header: live Beijing clock ===== -->
+    <header class="topbar">
+      <div class="brand">倒计时 Overlay</div>
+      <div class="clock" id="clock">--</div>
+      <label class="sound-toggle">
+        <input type="checkbox" id="soundToggle" />
+        <span id="soundLabel">音效 开</span>
+      </label>
+    </header>
+
+    <main class="content">
+      <!-- ===== Tasks ===== -->
+      <section class="card">
+        <div class="card-head">
+          <h2>定时任务</h2>
+          <button class="btn primary" id="addTask">+ 新建任务</button>
+        </div>
+        <div class="task-list" id="taskList"></div>
+        <p class="empty" id="emptyTasks">还没有任务，点击「新建任务」创建一个。</p>
+      </section>
+
+      <!-- ===== Animation themes ===== -->
+      <section class="card">
+        <div class="card-head">
+          <h2 id="themeHeading">动画效果</h2>
+          <span class="hint">点击「预览」全屏播放 5→1 倒计时</span>
+        </div>
+        <div class="theme-grid" id="themeGrid"></div>
+      </section>
+    </main>
+
+    <!-- ===== Task editor dialog ===== -->
+    <dialog id="taskDialog" class="dialog">
+      <form method="dialog" id="taskForm">
+        <h3 id="dialogTitle">新建任务</h3>
+
+        <label class="field">
+          <span>任务名称</span>
+          <input id="f_name" type="text" maxlength="40" placeholder="例如：起飞倒计时" required />
+        </label>
+
+        <label class="field">
+          <span>目标时间（北京时间，含秒）</span>
+          <input id="f_time" type="datetime-local" step="1" required />
+        </label>
+
+        <div class="field">
+          <span>类型</span>
+          <div class="radios">
+            <label><input type="radio" name="ttype" value="once" checked /> 一次性</label>
+            <label><input type="radio" name="ttype" value="repeat" /> 重复</label>
+          </div>
+        </div>
+
+        <div class="field" id="weekdayRow" hidden>
+          <span>重复（周一～周日）</span>
+          <div class="weekdays" id="weekdays"></div>
+        </div>
+
+        <label class="field">
+          <span>动画效果</span>
+          <select id="f_theme"></select>
+        </label>
+
+        <div class="dialog-actions">
+          <button type="button" class="btn" id="cancelDialog">取消</button>
+          <button type="submit" class="btn primary" id="saveTask">保存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="status" id="status" role="status"></div>
+
+    <script type="module" src="/src/settings/main.ts"></script>
+  </body>
+</html>

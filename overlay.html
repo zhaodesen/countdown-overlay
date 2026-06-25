@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Overlay</title>
+    <link rel="stylesheet" href="/src/overlay/style.css" />
+  </head>
+  <body class="overlay-body">
+    <!-- Animated theme background (Canvas 2D). -->
+    <canvas id="bg" class="bg-canvas"></canvas>
+
+    <!-- Foreground particle layer. -->
+    <canvas id="fx" class="fx-canvas"></canvas>
+
+    <!-- Realistic smoke layers (above the number so they can obscure → reveal).
+         #fluid = WebGL2 fluid sim (preferred); #smoke = Canvas2D fallback. -->
+    <canvas id="fluid" class="smoke-canvas"></canvas>
+    <canvas id="smoke" class="smoke-canvas"></canvas>
+
+    <!-- White impact flash. -->
+    <div class="flash" id="flash" aria-hidden="true"></div>
+
+    <!-- Top "alert" decorations. -->
+    <div class="top-fx" aria-hidden="true">
+      <div class="scanline"></div>
+      <div class="beam"></div>
+      <div class="banner">
+        <span class="banner-text" id="banner">COUNTDOWN</span>
+      </div>
+    </div>
+
+    <!-- Center stage. -->
+    <div class="stage">
+      <div class="shockwave" id="shockwave" aria-hidden="true"></div>
+      <div class="glow" id="glow" aria-hidden="true"></div>
+      <div class="number" id="number">5</div>
+    </div>
+
+    <script type="module" src="/src/overlay/main.ts"></script>
+  </body>
+</html>
