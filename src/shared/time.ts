@@ -117,6 +117,19 @@ export function toDatetimeLocal(w: {
   );
 }
 
+/** Whether a target instant was crossed between two scheduler checks. */
+export function crossedEpoch(
+  targetMs: number,
+  fromExclusiveMs: number,
+  toInclusiveMs: number
+): boolean {
+  return (
+    toInclusiveMs >= fromExclusiveMs &&
+    targetMs > fromExclusiveMs &&
+    targetMs <= toInclusiveMs
+  );
+}
+
 /**
  * Compute the next fire instant (epoch ms) for a task, given "now".
  * The overlay should appear `lead` seconds BEFORE the target time so the

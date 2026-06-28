@@ -75,7 +75,7 @@ async function finish() {
   smoke?.destroy();
   if (isTauri) {
     void emit(EVENT_FINISHED);
-    await getCurrentWindow().close();
+    await getCurrentWindow().destroy();
   }
 }
 

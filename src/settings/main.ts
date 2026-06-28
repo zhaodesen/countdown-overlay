@@ -12,6 +12,7 @@ import {
 import { AppSettings, EVENT_FINISHED, Task, TRIGGER_LEAD_SECONDS } from "../shared/types";
 import {
   beijingNow,
+  crossedEpoch,
   defaultTaskTime,
   formatClock,
   formatTaskTime,
@@ -302,15 +303,32 @@ form.addEventListener("submit", (e) => {
 });
 
 /* ---------------- Scheduler ---------------- */
+// Track the interval between scheduler runs instead of relying on a narrow
+// wall-clock window. If the webview timer is throttled or the machine sleeps,
+// the first tick after resume still observes that the trigger point was
+// crossed. Starting from the current instant intentionally avoids replaying
+// tasks that expired while the application was not running.
+let lastSchedulerCheckAt = Date.now();
+
 function schedulerTick() {
   const now = Date.now();
+  const checkedFrom = now >= lastSchedulerCheckAt ? lastSchedulerCheckAt : now;
+  lastSchedulerCheckAt = now;
   let changed = false;
   for (const t of tasks) {
     if (!t.enabled) continue;
-    const fireAt = nextFireEpoch(t, TRIGGER_LEAD_SECONDS, now);
+    const fireAt = nextFireEpoch(t, TRIGGER_LEAD_SECONDS, checkedFrom);
     if (fireAt == null) continue;
-    // Fire within a 2s window once.
-    if (now >= fireAt && now < fireAt + 2000 && t.lastFiredFor !== fireAt) {
+
+    // A one-shot that was already stale when this polling interval started
+    // must not remain enabled forever or replay after an application restart.
+    if (t.type === "once" && fireAt <= checkedFrom) {
+      t.enabled = false;
+      changed = true;
+      continue;
+    }
+
+    if (crossedEpoch(fireAt, checkedFrom, now) && t.lastFiredFor !== fireAt) {
       t.lastFiredFor = fireAt;
       changed = true;
       void openOverlay(t.themeId, false);

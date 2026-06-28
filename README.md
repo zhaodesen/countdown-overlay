@@ -6,6 +6,14 @@
 
 ---
 
+## 支持平台
+
+- **macOS 12+**：Intel 与 Apple Silicon（Universal 安装包）。
+- **Windows 10/11**：x64。
+- 暂不承诺支持旧版 macOS、Windows 7/8、Windows ARM64 和多显示器。
+
+---
+
 ## 功能总览
 
 - **实时北京时间**：顶栏显示「年月日 周几 时分秒」，UTC+8，不受本机时区影响。
