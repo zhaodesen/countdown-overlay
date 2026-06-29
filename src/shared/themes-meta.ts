@@ -9,6 +9,8 @@ export interface ThemeMeta {
   swatch: [string, string];
   /** Short flavour text. */
   blurb: string;
+  /** Lazy-loaded preview artwork shown in the animation library. */
+  preview: string;
 }
 
 export const THEME_META: ThemeMeta[] = [
@@ -18,6 +20,7 @@ export const THEME_META: ThemeMeta[] = [
     category: "Cyberpunk",
     swatch: ["#ff2e9a", "#15e1ff"],
     blurb: "霓虹故障 · 数字雨",
+    preview: "/themes/cyberpunk.webp",
   },
   {
     id: "tech",
@@ -25,6 +28,7 @@ export const THEME_META: ThemeMeta[] = [
     category: "Sci-Fi",
     swatch: ["#16e0ff", "#1666ff"],
     blurb: "全息环 · 扫描线",
+    preview: "/themes/tech.webp",
   },
   {
     id: "wuxia",
@@ -32,6 +36,7 @@ export const THEME_META: ThemeMeta[] = [
     category: "Martial Arts",
     swatch: ["#e8b84b", "#b3151b"],
     blurb: "剑气 · 泼墨 · 金书",
+    preview: "/themes/wuxia.webp",
   },
   {
     id: "ink",
@@ -39,6 +44,7 @@ export const THEME_META: ThemeMeta[] = [
     category: "Ink Wash",
     swatch: ["#2b2b2b", "#9aa0a6"],
     blurb: "宣纸 · 飞白 · 墨点",
+    preview: "/themes/ink.webp",
   },
   {
     id: "cartoon",
@@ -46,6 +52,7 @@ export const THEME_META: ThemeMeta[] = [
     category: "Cartoon",
     swatch: ["#ff5d8f", "#ffd23f"],
     blurb: "弹跳 · 漫画爆点",
+    preview: "/themes/cartoon.webp",
   },
   {
     id: "flame",
@@ -53,6 +60,7 @@ export const THEME_META: ThemeMeta[] = [
     category: "Fire",
     swatch: ["#ff7b00", "#ff2e2e"],
     blurb: "火星 · 热浪 · 爆燃",
+    preview: "/themes/flame.webp",
   },
   {
     id: "frost",
@@ -60,6 +68,7 @@ export const THEME_META: ThemeMeta[] = [
     category: "Ice",
     swatch: ["#bfeaff", "#3aa0ff"],
     blurb: "冰晶 · 飘雪 · 碎裂",
+    preview: "/themes/frost.webp",
   },
   {
     id: "galaxy",
@@ -67,6 +76,7 @@ export const THEME_META: ThemeMeta[] = [
     category: "Cosmic",
     swatch: ["#7b5cff", "#1a1040"],
     blurb: "星海 · 曲速 · 星云",
+    preview: "/themes/galaxy.webp",
   },
   {
     id: "retro",
@@ -74,6 +84,7 @@ export const THEME_META: ThemeMeta[] = [
     category: "Retro",
     swatch: ["#39ff14", "#0b3d0b"],
     blurb: "CRT · 像素 · 8-bit",
+    preview: "/themes/retro.webp",
   },
   {
     id: "gold",
@@ -81,6 +92,7 @@ export const THEME_META: ThemeMeta[] = [
     category: "Celebration",
     swatch: ["#ffd700", "#ff8c00"],
     blurb: "金箔 · 烟花 · 礼花",
+    preview: "/themes/gold.webp",
   },
   {
     id: "smoke",
@@ -88,6 +100,7 @@ export const THEME_META: ThemeMeta[] = [
     category: "Realistic Smoke",
     swatch: ["#c9ced8", "#5b606c"],
     blurb: "顶部喷涌 · 写实 · 渐散",
+    preview: "/themes/smoke.webp",
   },
 ];
 

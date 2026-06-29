@@ -41,6 +41,7 @@ export interface Task {
 /** Global app settings. */
 export interface AppSettings {
   soundOn: boolean;
+  colorMode: "dark" | "light";
 }
 
 /** Config handed to the overlay window via localStorage before it opens. */
@@ -50,4 +51,4 @@ export interface OverlayConfig {
   preview: boolean;
 }
 
-export const DEFAULT_SETTINGS: AppSettings = { soundOn: true };
+export const DEFAULT_SETTINGS: AppSettings = { soundOn: true, colorMode: "dark" };

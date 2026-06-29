@@ -25,18 +25,25 @@ abstract class BaseBg implements BackgroundController {
     const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) throw new Error("2D context unavailable");
     this.ctx = ctx;
-    this.resize();
+    // Do not dispatch to a subclass override from the base constructor.
+    // Derived fields (for example RainBg.fontSize) are initialized only after
+    // super() returns, so calling onResize() here can produce invalid values.
+    this.resizeCanvas();
     window.addEventListener("resize", this.resize);
     this.raf = requestAnimationFrame(this.tick);
   }
 
-  protected resize = () => {
+  private resizeCanvas() {
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.canvas.width = Math.floor(this.W * this.dpr);
     this.canvas.height = Math.floor(this.H * this.dpr);
     this.canvas.style.width = this.W + "px";
     this.canvas.style.height = this.H + "px";
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+  }
+
+  protected resize = () => {
+    this.resizeCanvas();
     this.onResize();
   };
 

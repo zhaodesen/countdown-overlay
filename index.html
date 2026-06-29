@@ -5,43 +5,131 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>倒计时 Overlay · 控制台</title>
     <link rel="stylesheet" href="/src/settings/style.css" />
+    <script>
+      try {
+        const saved = JSON.parse(localStorage.getItem("co.settings.v1") || "{}");
+        document.documentElement.dataset.theme = saved.colorMode === "light" ? "light" : "dark";
+      } catch {
+        document.documentElement.dataset.theme = "dark";
+      }
+    </script>
   </head>
   <body>
-    <!-- ===== Header: live Beijing clock ===== -->
-    <header class="topbar">
-      <div class="brand">倒计时 Overlay</div>
-      <div class="clock" id="clock">--</div>
-      <label class="sound-toggle">
-        <input type="checkbox" id="soundToggle" />
-        <span id="soundLabel">音效 开</span>
-      </label>
+    <header class="app-header">
+      <a class="brand" href="#home" aria-label="倒计时 Overlay 首页">
+        <span class="brand-mark" aria-hidden="true">5</span>
+        <span>倒计时 Overlay</span>
+      </a>
+
+      <nav class="primary-nav" aria-label="主菜单">
+        <button class="nav-item active" type="button" data-view="home">首页</button>
+        <button class="nav-item" type="button" data-view="themes">动画效果</button>
+        <button class="nav-item" type="button" data-view="settings">设置</button>
+      </nav>
+
+      <div class="header-tools">
+        <div class="mode-switch" role="group" aria-label="界面主题">
+          <button type="button" data-theme-choice="dark" aria-pressed="true">深色</button>
+          <button type="button" data-theme-choice="light" aria-pressed="false">浅色</button>
+        </div>
+        <label class="sound-toggle">
+          <span id="soundLabel">音效 开</span>
+          <input type="checkbox" id="soundToggle" />
+        </label>
+      </div>
     </header>
 
-    <main class="content">
-      <!-- ===== Tasks ===== -->
-      <section class="card">
-        <div class="card-head">
-          <h2>定时任务</h2>
-          <button class="btn primary" id="addTask">+ 新建任务</button>
+    <main class="app-main">
+      <section class="view home-view active" data-view-panel="home">
+        <div class="time-hero" aria-label="北京时间">
+          <div class="time-label">北京时间</div>
+          <div class="clock-date" id="clockDate">--</div>
+          <div class="clock-time" id="clockTime">--:--:--</div>
         </div>
-        <div class="task-list" id="taskList"></div>
-        <p class="empty" id="emptyTasks">还没有任务，点击「新建任务」创建一个。</p>
+
+        <section class="task-workspace" aria-labelledby="taskHeading">
+          <div class="section-head">
+            <div class="section-title-row">
+              <h1 id="taskHeading">定时任务</h1>
+              <span class="count" id="taskCount">0</span>
+            </div>
+            <button class="btn primary" id="addTask">+ 新建任务</button>
+          </div>
+
+          <div class="task-table" id="taskTable">
+            <div class="task-table-head" aria-hidden="true">
+              <span>任务名称</span>
+              <span>目标时间</span>
+              <span>重复</span>
+              <span>主题</span>
+              <span>启用</span>
+              <span>操作</span>
+            </div>
+            <div class="task-list" id="taskList"></div>
+          </div>
+
+          <div class="empty" id="emptyTasks">
+            <strong>还没有任务</strong>
+            <span>点击「新建任务」创建第一个倒计时。</span>
+          </div>
+        </section>
+
+        <footer class="page-note">所有任务时间均基于北京时间</footer>
       </section>
 
-      <!-- ===== Animation themes ===== -->
-      <section class="card">
-        <div class="card-head">
-          <h2 id="themeHeading">动画效果</h2>
-          <span class="hint">点击「预览」全屏播放 5→1 倒计时</span>
+      <section class="view themes-view" data-view-panel="themes" hidden>
+        <div class="library-head">
+          <div>
+            <div class="eyebrow">动画库</div>
+            <h1 id="themeHeading">动画效果 · 11 款</h1>
+            <p>预览图按需加载；滚动时仅渲染可见主题。</p>
+          </div>
+          <span class="library-meta">点击预览，全屏播放 5→1</span>
         </div>
-        <div class="theme-grid" id="themeGrid"></div>
+        <div class="theme-viewport" id="themeViewport" tabindex="0" aria-label="动画主题列表">
+          <div class="theme-virtual-canvas" id="themeVirtualCanvas"></div>
+        </div>
+      </section>
+
+      <section class="view settings-view" data-view-panel="settings" hidden>
+        <div class="settings-head">
+          <div class="eyebrow">偏好设置</div>
+          <h1>设置</h1>
+          <p>外观和声音设置会自动保存在本机。</p>
+        </div>
+
+        <div class="settings-list">
+          <section class="setting-row">
+            <div>
+              <h2>界面主题</h2>
+              <p>在深色和浅色界面之间切换。</p>
+            </div>
+            <div class="mode-switch large" role="group" aria-label="设置界面主题">
+              <button type="button" data-theme-choice="dark" aria-pressed="true">深色</button>
+              <button type="button" data-theme-choice="light" aria-pressed="false">浅色</button>
+            </div>
+          </section>
+
+          <section class="setting-row">
+            <div>
+              <h2>倒计时音效</h2>
+              <p>控制预览与定时触发时的提示音。</p>
+            </div>
+            <label class="setting-switch">
+              <input type="checkbox" id="settingsSoundToggle" />
+              <span>启用音效</span>
+            </label>
+          </section>
+        </div>
       </section>
     </main>
 
-    <!-- ===== Task editor dialog ===== -->
     <dialog id="taskDialog" class="dialog">
       <form method="dialog" id="taskForm">
-        <h3 id="dialogTitle">新建任务</h3>
+        <div class="dialog-head">
+          <div class="eyebrow">任务配置</div>
+          <h3 id="dialogTitle">新建任务</h3>
+        </div>
 
         <label class="field">
           <span>任务名称</span>
