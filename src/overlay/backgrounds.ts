@@ -4,13 +4,16 @@
  * number/particles. Kept parameterized (colors) so themes can reuse them.
  */
 
+import { adaptiveCanvasDpr } from "./performance";
+
 export interface BackgroundController {
   destroy(): void;
 }
 
 abstract class BaseBg implements BackgroundController {
+  private static readonly FRAME_INTERVAL_MS = 1000 / 30;
   protected ctx: CanvasRenderingContext2D;
-  protected dpr = Math.min(window.devicePixelRatio || 1, 2);
+  protected dpr = adaptiveCanvasDpr();
   protected raf = 0;
   protected last = performance.now();
   protected running = true;
@@ -34,7 +37,7 @@ abstract class BaseBg implements BackgroundController {
   }
 
   private resizeCanvas() {
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.dpr = adaptiveCanvasDpr();
     this.canvas.width = Math.floor(this.W * this.dpr);
     this.canvas.height = Math.floor(this.H * this.dpr);
     this.canvas.style.width = this.W + "px";
@@ -51,6 +54,10 @@ abstract class BaseBg implements BackgroundController {
 
   private tick = (now: number) => {
     if (!this.running) return;
+    if (now - this.last < BaseBg.FRAME_INTERVAL_MS) {
+      this.raf = requestAnimationFrame(this.tick);
+      return;
+    }
     const dt = Math.min((now - this.last) / 1000, 0.05);
     this.last = now;
     this.draw(dt);
@@ -333,9 +340,6 @@ class InkBg extends BaseBg {
   }
   protected draw(dt: number) {
     const ctx = this.ctx;
-    // paper-ish fade
-    ctx.fillStyle = "rgba(245,243,235,0.05)";
-    ctx.fillRect(0, 0, this.W, this.H);
     ctx.clearRect(0, 0, this.W, this.H);
     for (const b of this.blobs) {
       b.x += b.vx * dt;

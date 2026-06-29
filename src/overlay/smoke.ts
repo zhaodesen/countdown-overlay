@@ -8,6 +8,8 @@
  * top of the screen; with no further emission the cloud naturally dissipates.
  */
 
+import { smokeCanvasDpr } from "./performance";
+
 /** Common interface for swappable smoke implementations (Canvas2D / WebGL). */
 export interface SmokeLike {
   start(): void;
@@ -57,7 +59,7 @@ function makeSprite(rgb: [number, number, number]): HTMLCanvasElement {
 
 export class SmokeSystem implements SmokeLike {
   private ctx: CanvasRenderingContext2D;
-  private dpr = Math.min(window.devicePixelRatio || 1, 2);
+  private dpr = smokeCanvasDpr();
   private raf = 0;
   private last = performance.now();
   private running = false;
@@ -89,7 +91,7 @@ export class SmokeSystem implements SmokeLike {
   }
 
   private resize = () => {
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.dpr = smokeCanvasDpr();
     this.canvas.width = Math.floor(this.W * this.dpr);
     this.canvas.height = Math.floor(this.H * this.dpr);
     this.canvas.style.width = this.W + "px";

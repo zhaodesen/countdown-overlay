@@ -15,11 +15,9 @@
  */
 
 import type { SmokeLike } from "./smoke";
+import { smokeCanvasDpr, smokeQuality } from "./performance";
 
 /* ---- tunable constants ---- */
-const SIM_RES = 128; // velocity/pressure grid resolution (perf knob)
-const DYE_RES = 512; // dye (smoke density) resolution (visual quality)
-const PRESSURE_ITERATIONS = 20;
 const VELOCITY_DISSIPATION = 0.4;
 const DYE_DISSIPATION = 0.9; // higher → smoke clears sooner
 const PRESSURE_DECAY = 0.8;
@@ -254,7 +252,8 @@ export class FluidSmoke implements SmokeLike {
   private last = performance.now();
   private running = false;
   private emitUntil = 0;
-  private dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  private dpr = smokeCanvasDpr();
+  private readonly quality = smokeQuality();
 
   private get W() {
     return window.innerWidth;
@@ -307,6 +306,7 @@ export class FluidSmoke implements SmokeLike {
   }
 
   private resize = () => {
+    this.dpr = smokeCanvasDpr();
     this.canvas.width = Math.floor(this.W * this.dpr);
     this.canvas.height = Math.floor(this.H * this.dpr);
     this.canvas.style.width = this.W + "px";
@@ -314,16 +314,18 @@ export class FluidSmoke implements SmokeLike {
   };
 
   private simSize() {
+    const resolution = this.quality.simulationResolution;
     const aspect = this.W / this.H;
     return aspect >= 1
-      ? { w: Math.round(SIM_RES * aspect), h: SIM_RES }
-      : { w: SIM_RES, h: Math.round(SIM_RES / aspect) };
+      ? { w: Math.round(resolution * aspect), h: resolution }
+      : { w: resolution, h: Math.round(resolution / aspect) };
   }
   private dyeSize() {
+    const resolution = this.quality.dyeResolution;
     const aspect = this.W / this.H;
     return aspect >= 1
-      ? { w: Math.round(DYE_RES * aspect), h: DYE_RES }
-      : { w: DYE_RES, h: Math.round(DYE_RES / aspect) };
+      ? { w: Math.round(resolution * aspect), h: resolution }
+      : { w: resolution, h: Math.round(resolution / aspect) };
   }
 
   private makeFBO(w: number, h: number, internal: number, format: number, type: number, filter: number): FBO {
@@ -490,7 +492,7 @@ export class FluidSmoke implements SmokeLike {
     P.pressure.bind();
     gl.uniform2f(P.pressure.uniforms.texelSize, vel.texelX, vel.texelY);
     gl.uniform1i(P.pressure.uniforms.uDivergence, this.divergence.attach(0));
-    for (let i = 0; i < PRESSURE_ITERATIONS; i++) {
+    for (let i = 0; i < this.quality.pressureIterations; i++) {
       gl.uniform1i(P.pressure.uniforms.uPressure, this.pressure.read.attach(1));
       this.blit(this.pressure.write);
       this.pressure.swap();

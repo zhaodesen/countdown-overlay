@@ -1,10 +1,12 @@
-use std::time::{Duration, Instant};
+use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{
     async_runtime::Mutex,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder,
 };
+use tokio::sync::Notify;
 
 /// Label used for the (single) overlay window. Kept as a constant so it is
 /// easy to reuse when we later support multi-monitor (one window per monitor).
@@ -12,10 +14,39 @@ const OVERLAY_LABEL: &str = "overlay";
 const TRAY_ID: &str = "main-tray";
 const TRAY_SHOW_MAIN_ID: &str = "tray-show-main";
 const TRAY_EXIT_APP_ID: &str = "tray-exit-app";
+const EVENT_SCHEDULE_FIRED: &str = "scheduler:fired";
 
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ScheduledTrigger {
+    task_id: String,
+    fire_at_ms: i64,
+    theme_id: String,
+    sound_on: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SchedulerFiredPayload {
+    task_id: String,
+    fire_at_ms: i64,
+    opened: bool,
+}
+
 struct OverlayState {
     operation_lock: Mutex<()>,
+    schedule: Mutex<Vec<ScheduledTrigger>>,
+    schedule_changed: Notify,
+}
+
+impl Default for OverlayState {
+    fn default() -> Self {
+        Self {
+            operation_lock: Mutex::new(()),
+            schedule: Mutex::new(Vec::new()),
+            schedule_changed: Notify::new(),
+        }
+    }
 }
 
 fn show_main_window(app: &AppHandle) {
@@ -32,8 +63,20 @@ fn show_main_window(app: &AppHandle) {
 /// Notes for future multi-monitor support: iterate `app.available_monitors()`
 /// and build one overlay window per monitor with a label like
 /// `overlay-<index>`, positioning each at its monitor's origin.
-#[tauri::command]
-async fn show_overlay(app: AppHandle, state: State<'_, OverlayState>) -> Result<(), String> {
+async fn show_overlay_window(
+    app: &AppHandle,
+    state: &OverlayState,
+    theme_id: &str,
+    sound_on: bool,
+    preview: bool,
+) -> Result<(), String> {
+    if !theme_id
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || character == '-' || character == '_')
+    {
+        return Err("invalid theme id".to_string());
+    }
+
     // Multiple tasks may fire in the same scheduler tick. Serialize the full
     // replace/create operation so concurrent invokes cannot claim the label.
     let _operation_guard = state.operation_lock.lock().await;
@@ -66,8 +109,14 @@ async fn show_overlay(app: AppHandle, state: State<'_, OverlayState>) -> Result<
     let logical_w = size.width as f64 / scale;
     let logical_h = size.height as f64 / scale;
 
+    let overlay_url = format!(
+        "overlay.html?theme={theme_id}&sound={}&preview={}",
+        if sound_on { 1 } else { 0 },
+        if preview { 1 } else { 0 }
+    );
+
     let window =
-        WebviewWindowBuilder::new(&app, OVERLAY_LABEL, WebviewUrl::App("overlay.html".into()))
+        WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App(overlay_url.into()))
             .title("overlay")
             .inner_size(logical_w, logical_h)
             .decorations(false) // no borders / title bar
@@ -94,11 +143,92 @@ async fn show_overlay(app: AppHandle, state: State<'_, OverlayState>) -> Result<
     Ok(())
 }
 
+#[tauri::command]
+async fn show_overlay(
+    app: AppHandle,
+    state: State<'_, OverlayState>,
+    theme_id: String,
+    sound_on: bool,
+    preview: bool,
+) -> Result<(), String> {
+    show_overlay_window(&app, state.inner(), &theme_id, sound_on, preview).await
+}
+
+#[tauri::command]
+async fn sync_scheduler(
+    state: State<'_, OverlayState>,
+    mut entries: Vec<ScheduledTrigger>,
+) -> Result<(), String> {
+    entries.sort_by_key(|entry| entry.fire_at_ms);
+    *state.schedule.lock().await = entries;
+    state.schedule_changed.notify_one();
+    Ok(())
+}
+
+fn epoch_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64
+}
+
+async fn scheduler_loop(app: AppHandle) {
+    loop {
+        let state = app.state::<OverlayState>();
+        let schedule_changed = state.schedule_changed.notified();
+        let next = {
+            let schedule = state.schedule.lock().await;
+            schedule.first().cloned()
+        };
+
+        let Some(next) = next else {
+            schedule_changed.await;
+            continue;
+        };
+
+        let delay_ms = next.fire_at_ms.saturating_sub(epoch_ms());
+        if delay_ms > 0 {
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_millis(delay_ms as u64)) => {},
+                _ = schedule_changed => continue,
+            }
+        }
+
+        let due = {
+            let now = epoch_ms();
+            let mut schedule = state.schedule.lock().await;
+            let first_pending = schedule.partition_point(|entry| entry.fire_at_ms <= now);
+            schedule.drain(..first_pending).collect::<Vec<_>>()
+        };
+
+        for trigger in due {
+            let opened = show_overlay_window(
+                &app,
+                state.inner(),
+                &trigger.theme_id,
+                trigger.sound_on,
+                false,
+            )
+            .await
+            .is_ok();
+            let _ = app.emit_to(
+                "main",
+                EVENT_SCHEDULE_FIRED,
+                SchedulerFiredPayload {
+                    task_id: trigger.task_id,
+                    fire_at_ms: trigger.fire_at_ms,
+                    opened,
+                },
+            );
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(OverlayState::default())
-        .invoke_handler(tauri::generate_handler![show_overlay])
+        .invoke_handler(tauri::generate_handler![show_overlay, sync_scheduler])
         .setup(|app| {
             let show_item = MenuItem::with_id(
                 app,
@@ -138,6 +268,8 @@ pub fn run() {
             }
 
             tray.build(app)?;
+            let scheduler_app = app.handle().clone();
+            tauri::async_runtime::spawn(scheduler_loop(scheduler_app));
             Ok(())
         })
         .on_window_event(|window, event| {

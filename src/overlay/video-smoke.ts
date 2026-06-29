@@ -14,6 +14,7 @@
  */
 
 import type { SmokeLike } from "./smoke";
+import { smokeCanvasDpr } from "./performance";
 
 /* ---- keying / look (tweak to taste) ---- */
 const KEY_LOW = 0.05; // luminance below this → fully transparent
@@ -48,7 +49,7 @@ export class VideoSmoke implements SmokeLike {
   private running = false;
   private opacity = 1;
   private fading = false;
-  private dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  private dpr = smokeCanvasDpr();
 
   private constructor(private video: HTMLVideoElement) {
     const c = document.createElement("canvas");
@@ -114,6 +115,7 @@ export class VideoSmoke implements SmokeLike {
   }
 
   private resize = () => {
+    this.dpr = smokeCanvasDpr();
     this.canvas.width = Math.floor(window.innerWidth * this.dpr);
     this.canvas.height = Math.floor(window.innerHeight * this.dpr);
     this.canvas.style.width = window.innerWidth + "px";
