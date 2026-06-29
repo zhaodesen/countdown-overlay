@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { THEME_META, themeName, type ThemeMeta } from "../shared/themes-meta";
 import {
   loadSettings,
@@ -103,6 +104,11 @@ function renderAppearance() {
   document.querySelectorAll<HTMLButtonElement>("[data-theme-choice]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.themeChoice === settings.colorMode));
   });
+  if (isTauri) {
+    void getCurrentWindow().setTheme(settings.colorMode).catch((error) => {
+      console.warn("Unable to sync native window theme:", error);
+    });
+  }
 }
 
 function setColorMode(mode: AppSettings["colorMode"]) {
@@ -164,6 +170,7 @@ function virtualColumnCount(width: number): number {
 function themeCard(theme: ThemeMeta, width: number, left: number, top: number): HTMLElement {
   const card = document.createElement("article");
   card.className = "theme-card";
+  card.dataset.themeId = theme.id;
   card.style.width = `${width}px`;
   card.style.left = `${left}px`;
   card.style.top = `${top}px`;

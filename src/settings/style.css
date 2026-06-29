@@ -92,13 +92,9 @@ button {
 .brand-mark {
   width: 34px;
   height: 34px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
-  font-size: 17px;
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
+  display: block;
+  flex: 0 0 auto;
+  border-radius: 8px;
 }
 
 .primary-nav {
@@ -194,11 +190,51 @@ button {
 .sound-toggle input,
 .setting-switch input,
 .task .switch {
+  position: relative;
+  appearance: none;
   width: 34px;
   height: 18px;
   margin: 0;
-  accent-color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-raised);
   cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.sound-toggle input::before,
+.setting-switch input::before,
+.task .switch::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.sound-toggle input:checked,
+.setting-switch input:checked,
+.task .switch:checked {
+  border-color: var(--text);
+  background: var(--text);
+}
+
+.sound-toggle input:checked::before,
+.setting-switch input:checked::before,
+.task .switch:checked::before {
+  transform: translateX(16px);
+  background: var(--bg);
+}
+
+.sound-toggle input:focus-visible,
+.setting-switch input:focus-visible,
+.task .switch:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
 }
 
 .app-main {
@@ -806,7 +842,7 @@ p {
     min-width: 96px;
   }
 
-  .header-tools .mode-switch {
+  .header-tools {
     display: none;
   }
 

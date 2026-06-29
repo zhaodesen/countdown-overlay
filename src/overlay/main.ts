@@ -58,6 +58,8 @@ async function createSmoke(): Promise<SmokeLike | null> {
 }
 
 let smoke: SmokeLike | null = null;
+let timeline: gsap.core.Timeline | null = null;
+let safetyTimer: number | null = null;
 
 // Fade the overlay in.
 gsap.fromTo(document.body, { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" });
@@ -67,9 +69,17 @@ let finished = false;
 async function finish() {
   if (finished) return;
   finished = true;
+  window.removeEventListener("keydown", handleEscape, true);
+  if (safetyTimer !== null) {
+    window.clearTimeout(safetyTimer);
+    safetyTimer = null;
+  }
+  timeline?.kill();
+  timeline = null;
+  gsap.killTweensOf([document.body, ".top-fx"]);
   // Let video-smoke begin a graceful fade if it supports it.
   (smoke as { fadeOut?: () => void } | null)?.fadeOut?.();
-  await gsap.to(document.body, { opacity: 0, duration: 0.3, ease: "power1.in" }).then();
+  await gsap.to(document.body, { opacity: 0, duration: 0.16, ease: "power1.in" }).then();
   field.destroy();
   background.destroy();
   smoke?.destroy();
@@ -79,13 +89,26 @@ async function finish() {
   }
 }
 
+function handleEscape(event: KeyboardEvent) {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  void finish();
+}
+
+window.addEventListener("keydown", handleEscape, true);
+
 async function run() {
   // Resolve the smoke source (may await a video load) before the timeline so
   // erupt() is in sync with digit "5".
   smoke = await createSmoke();
+  if (finished) {
+    smoke?.destroy();
+    return;
+  }
   smoke?.start();
 
-  const timeline = buildCountdown({
+  timeline = buildCountdown({
     numberEl,
     glowEl,
     shockwaveEl,
@@ -104,8 +127,8 @@ async function run() {
   timeline.play();
 
   // Safety net: force-close if anything stalls.
-  window.setTimeout(() => {
-    if (timeline.progress() < 1) void finish();
+  safetyTimer = window.setTimeout(() => {
+    if (timeline && timeline.progress() < 1) void finish();
   }, 12_000);
 }
 

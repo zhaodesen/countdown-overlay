@@ -1,16 +1,29 @@
 use std::time::{Duration, Instant};
 use tauri::{
-    async_runtime::Mutex, AppHandle, Manager, PhysicalPosition, State, WebviewUrl,
-    WebviewWindowBuilder,
+    async_runtime::Mutex,
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder,
 };
 
 /// Label used for the (single) overlay window. Kept as a constant so it is
 /// easy to reuse when we later support multi-monitor (one window per monitor).
 const OVERLAY_LABEL: &str = "overlay";
+const TRAY_ID: &str = "main-tray";
+const TRAY_SHOW_MAIN_ID: &str = "tray-show-main";
+const TRAY_EXIT_APP_ID: &str = "tray-exit-app";
 
 #[derive(Default)]
 struct OverlayState {
     operation_lock: Mutex<()>,
+}
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
 }
 
 /// Create and show the full-screen, transparent, click-through overlay window
@@ -62,7 +75,7 @@ async fn show_overlay(app: AppHandle, state: State<'_, OverlayState>) -> Result<
             .always_on_top(true) // stay above other windows
             .skip_taskbar(true) // hide from taskbar / app switcher where supported
             .resizable(false)
-            .focused(false) // don't steal focus from the active app
+            .focused(true) // receive Escape so the user can always dismiss it
             .build()
             .map_err(|e| e.to_string())?;
 
@@ -75,6 +88,7 @@ async fn show_overlay(app: AppHandle, state: State<'_, OverlayState>) -> Result<
     // does not block interaction with apps underneath it.
     let _ = window.set_always_on_top(true);
     let _ = window.set_ignore_cursor_events(true);
+    let _ = window.set_focus();
 
     Ok(())
 }
@@ -84,13 +98,53 @@ pub fn run() {
     tauri::Builder::default()
         .manage(OverlayState::default())
         .invoke_handler(tauri::generate_handler![show_overlay])
+        .setup(|app| {
+            let show_item = MenuItem::with_id(
+                app,
+                TRAY_SHOW_MAIN_ID,
+                "显示主窗口",
+                true,
+                None::<&str>,
+            )?;
+            let quit_item =
+                MenuItem::with_id(app, TRAY_EXIT_APP_ID, "退出程序", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+            let mut tray = TrayIconBuilder::with_id(TRAY_ID)
+                .tooltip("bang")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    TRAY_SHOW_MAIN_ID => show_main_window(app),
+                    TRAY_EXIT_APP_ID => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if matches!(
+                        event,
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        }
+                    ) {
+                        show_main_window(tray.app_handle());
+                    }
+                });
+
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+
+            tray.build(app)?;
+            Ok(())
+        })
         .on_window_event(|window, event| {
-            if window.label() == "main"
-                && matches!(event, tauri::WindowEvent::CloseRequested { .. })
-            {
-                // Closing the control window means quitting the application,
-                // including every overlay webview and background task.
-                window.app_handle().exit(0);
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
             }
         })
         .run(tauri::generate_context!())

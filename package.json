@@ -1,9 +1,9 @@
 {
-  "name": "countdown-overlay",
+  "name": "bang",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Cross-platform desktop countdown overlay (Tauri 2 + TS + GSAP + Canvas 2D)",
+  "description": "Bang — cross-platform desktop countdown overlay (Tauri 2 + TS + GSAP + Canvas 2D)",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

@@ -1,6 +1,6 @@
-# Countdown Overlay
+# bang
 
-跨平台桌面**倒计时 Overlay** 应用。控制台管理多个定时任务，到达「目标时间前 5 秒」时弹出全屏、透明、置顶、可鼠标穿透的 Overlay 窗口，中央依次播放 `5 → 4 → 3 → 2 → 1` 的炫酷动画（GSAP 编排 + Canvas 2D 粒子 + 程序化音效），结束后自动关闭。
+**bang** 是一款跨平台桌面倒计时 Overlay 应用。控制台管理多个定时任务，到达「目标时间前 5 秒」时弹出全屏、透明、置顶、可鼠标穿透的 Overlay 窗口，中央依次播放 `5 → 4 → 3 → 2 → 1` 的炫酷动画（GSAP 编排 + Canvas 2D 粒子 + 程序化音效），结束后自动关闭。
 
 技术栈：**Tauri 2 + Rust 后端 + TypeScript 前端 + GSAP + Canvas 2D**（动画背景接口稳定，可平滑升级 WebGL / Three.js）。
 

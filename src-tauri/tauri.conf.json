@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "countdown-overlay",
+  "productName": "bang",
   "version": "0.1.0",
-  "identifier": "com.zhaodesen.countdownoverlay",
+  "identifier": "com.zhaodesen.bang",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -15,7 +15,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "倒计时 Overlay",
+        "title": "bang",
         "width": 1180,
         "height": 700,
         "minWidth": 760,
