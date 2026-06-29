@@ -16,11 +16,6 @@
   </head>
   <body>
     <header class="app-header">
-      <a class="brand" href="#home" aria-label="bang 首页">
-        <img class="brand-mark" src="/bang-logo.svg" alt="" aria-hidden="true" />
-        <span>bang</span>
-      </a>
-
       <nav class="primary-nav" aria-label="主菜单">
         <button class="nav-item active" type="button" data-view="home">首页</button>
         <button class="nav-item" type="button" data-view="themes">动画效果</button>
@@ -28,14 +23,27 @@
       </nav>
 
       <div class="header-tools">
-        <div class="mode-switch" role="group" aria-label="界面主题">
-          <button type="button" data-theme-choice="dark" aria-pressed="true">深色</button>
-          <button type="button" data-theme-choice="light" aria-pressed="false">浅色</button>
-        </div>
-        <label class="sound-toggle">
-          <span id="soundLabel">音效 开</span>
-          <input type="checkbox" id="soundToggle" />
-        </label>
+        <button class="icon-toggle" id="themeToggle" type="button" aria-label="切换界面主题">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <g class="icon-sun">
+              <circle cx="12" cy="12" r="3.5" />
+              <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M19.07 4.93l-1.42 1.42M6.35 17.65l-1.42 1.42" />
+            </g>
+            <path class="icon-moon" d="M20 15.25A8 8 0 0 1 8.75 4a8 8 0 1 0 11.25 11.25Z" />
+          </svg>
+        </button>
+        <button class="icon-toggle" id="soundToggle" type="button" aria-label="切换音效" aria-pressed="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <g class="sound-on">
+              <path d="M4 9v6h4l5 4V5L8 9H4Z" />
+              <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" />
+            </g>
+            <g class="sound-off">
+              <path d="M4 9v6h4l5 4V5L8 9H4Z" />
+              <path d="m17 9 5 5M22 9l-5 5" />
+            </g>
+          </svg>
+        </button>
       </div>
     </header>
 

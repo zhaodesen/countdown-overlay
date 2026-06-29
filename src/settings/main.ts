@@ -32,9 +32,9 @@ type ViewName = "home" | "themes" | "settings";
 /* ---------------- DOM refs ---------------- */
 const clockDateEl = document.getElementById("clockDate") as HTMLElement;
 const clockTimeEl = document.getElementById("clockTime") as HTMLElement;
-const soundToggle = document.getElementById("soundToggle") as HTMLInputElement;
+const themeToggle = document.getElementById("themeToggle") as HTMLButtonElement;
+const soundToggle = document.getElementById("soundToggle") as HTMLButtonElement;
 const settingsSoundToggle = document.getElementById("settingsSoundToggle") as HTMLInputElement;
-const soundLabel = document.getElementById("soundLabel") as HTMLElement;
 const taskTableEl = document.getElementById("taskTable") as HTMLElement;
 const taskListEl = document.getElementById("taskList") as HTMLElement;
 const taskCountEl = document.getElementById("taskCount") as HTMLElement;
@@ -101,32 +101,58 @@ tickClock();
 /* ---------------- Appearance and sound ---------------- */
 function renderAppearance() {
   document.documentElement.dataset.theme = settings.colorMode;
+  const themeAction = settings.colorMode === "dark" ? "切换为浅色主题" : "切换为深色主题";
+  themeToggle.dataset.mode = settings.colorMode;
+  themeToggle.setAttribute("aria-label", themeAction);
+  themeToggle.title = themeAction;
   document.querySelectorAll<HTMLButtonElement>("[data-theme-choice]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.themeChoice === settings.colorMode));
   });
-  if (isTauri) {
-    void getCurrentWindow().setTheme(settings.colorMode).catch((error) => {
-      console.warn("Unable to sync native window theme:", error);
-    });
-  }
 }
+
+function syncNativeTheme(mode: AppSettings["colorMode"] = settings.colorMode) {
+  if (!isTauri) return;
+  void getCurrentWindow().setTheme(mode).catch((error) => {
+    console.warn("Unable to sync native window theme:", error);
+  });
+}
+
+type ThemeTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => { finished: Promise<void> };
+};
 
 function setColorMode(mode: AppSettings["colorMode"]) {
   if (settings.colorMode === mode) return;
-  settings.colorMode = mode;
-  saveSettings(settings);
-  renderAppearance();
+
+  const applyMode = () => {
+    settings.colorMode = mode;
+    saveSettings(settings);
+    renderAppearance();
+    syncNativeTheme(mode);
+  };
+  const transitionDocument = document as ThemeTransitionDocument;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (transitionDocument.startViewTransition && !reduceMotion) {
+    transitionDocument.startViewTransition(applyMode);
+  } else {
+    applyMode();
+  }
   toast(mode === "dark" ? "已切换为深色主题" : "已切换为浅色主题");
 }
 
 document.querySelectorAll<HTMLButtonElement>("[data-theme-choice]").forEach((button) => {
   button.addEventListener("click", () => setColorMode(button.dataset.themeChoice as AppSettings["colorMode"]));
 });
+themeToggle.addEventListener("click", () => setColorMode(settings.colorMode === "dark" ? "light" : "dark"));
 
 function renderSound() {
-  soundToggle.checked = settings.soundOn;
+  const soundAction = settings.soundOn ? "关闭音效" : "开启音效";
+  soundToggle.dataset.enabled = String(settings.soundOn);
+  soundToggle.setAttribute("aria-pressed", String(settings.soundOn));
+  soundToggle.setAttribute("aria-label", soundAction);
+  soundToggle.title = soundAction;
   settingsSoundToggle.checked = settings.soundOn;
-  soundLabel.textContent = settings.soundOn ? "音效 开" : "音效 关";
 }
 
 function setSound(enabled: boolean) {
@@ -135,10 +161,11 @@ function setSound(enabled: boolean) {
   renderSound();
 }
 
-soundToggle.addEventListener("change", () => setSound(soundToggle.checked));
+soundToggle.addEventListener("click", () => setSound(!settings.soundOn));
 settingsSoundToggle.addEventListener("change", () => setSound(settingsSoundToggle.checked));
 
 renderAppearance();
+syncNativeTheme();
 renderSound();
 
 /* ---------------- Open overlay (preview / real) ---------------- */

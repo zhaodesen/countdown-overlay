@@ -71,6 +71,7 @@ async fn show_overlay(app: AppHandle, state: State<'_, OverlayState>) -> Result<
             .title("overlay")
             .inner_size(logical_w, logical_h)
             .decorations(false) // no borders / title bar
+            .shadow(false) // remove the Windows undecorated inset around the content
             .transparent(true) // transparent background
             .always_on_top(true) // stay above other windows
             .skip_taskbar(true) // hide from taskbar / app switcher where supported
