@@ -10,13 +10,23 @@ import {
   uid,
   writeOverlayConfig,
 } from "../shared/storage";
-import { AppSettings, EVENT_FINISHED, Task, TRIGGER_LEAD_SECONDS } from "../shared/types";
+import {
+  AppSettings,
+  EVENT_FINISHED,
+  IntervalUnit,
+  Task,
+  TaskType,
+  TimeMode,
+  TRIGGER_LEAD_SECONDS,
+} from "../shared/types";
 import {
   beijingNow,
+  beijingWallToEpoch,
   crossedEpoch,
   defaultTaskTime,
   formatTaskTime,
   nextFireEpoch,
+  nextOccurrence,
   parseDatetimeLocal,
   toDatetimeLocal,
 } from "../shared/time";
@@ -35,10 +45,9 @@ const clockTimeEl = document.getElementById("clockTime") as HTMLElement;
 const themeToggle = document.getElementById("themeToggle") as HTMLButtonElement;
 const soundToggle = document.getElementById("soundToggle") as HTMLButtonElement;
 const settingsSoundToggle = document.getElementById("settingsSoundToggle") as HTMLInputElement;
-const taskTableEl = document.getElementById("taskTable") as HTMLElement;
+const homeStageEl = document.getElementById("homeStage") as HTMLElement;
 const taskListEl = document.getElementById("taskList") as HTMLElement;
 const taskCountEl = document.getElementById("taskCount") as HTMLElement;
-const emptyTasksEl = document.getElementById("emptyTasks") as HTMLElement;
 const themeViewportEl = document.getElementById("themeViewport") as HTMLElement;
 const themeCanvasEl = document.getElementById("themeVirtualCanvas") as HTMLElement;
 const statusEl = document.getElementById("status") as HTMLElement;
@@ -48,9 +57,17 @@ const form = document.getElementById("taskForm") as HTMLFormElement;
 const dialogTitle = document.getElementById("dialogTitle") as HTMLElement;
 const fName = document.getElementById("f_name") as HTMLInputElement;
 const fTime = document.getElementById("f_time") as HTMLInputElement;
+const fDateTime = document.getElementById("f_datetime") as HTMLInputElement;
 const fTheme = document.getElementById("f_theme") as HTMLSelectElement;
+const fIntervalValue = document.getElementById("f_intervalValue") as HTMLInputElement;
+const fIntervalUnit = document.getElementById("f_intervalUnit") as HTMLSelectElement;
+const typeSegEl = document.getElementById("typeSeg") as HTMLElement;
+const targetRow = document.getElementById("targetRow") as HTMLElement;
+const targetModeSegEl = document.getElementById("targetModeSeg") as HTMLElement;
+const timeHintEl = document.getElementById("timeHint") as HTMLElement;
 const weekdayRow = document.getElementById("weekdayRow") as HTMLElement;
 const weekdaysEl = document.getElementById("weekdays") as HTMLElement;
+const intervalRow = document.getElementById("intervalRow") as HTMLElement;
 
 /* ---------------- Status toast ---------------- */
 let statusTimer = 0;
@@ -289,10 +306,27 @@ function fillThemeSelect() {
 /* ---------------- Task list ---------------- */
 const WD_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 const WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const UNIT_LABELS: Record<IntervalUnit, string> = {
+  second: "秒",
+  minute: "分钟",
+  hour: "小时",
+  day: "天",
+};
+const TYPE_LABELS: Record<TaskType, string> = {
+  once: "一次性",
+  repeat: "重复",
+  interval: "循环",
+};
 
 function describeTask(task: Task): string {
+  if (task.type === "interval") {
+    const unit = task.intervalUnit ? UNIT_LABELS[task.intervalUnit] : "";
+    return `每 ${task.intervalValue ?? 0} ${unit}`;
+  }
   const time = formatTaskTime(task);
-  if (task.type === "once") return `${task.year}-${time}`;
+  if (task.type === "once") {
+    return task.timeMode === "time" ? time.split(" ")[1] : `${task.year}-${time}`;
+  }
   const days = WD_ORDER.filter((day) => task.weekdays.includes(day))
     .map((day) => "周" + WD_LABELS[day])
     .join("、");
@@ -302,19 +336,20 @@ function describeTask(task: Task): string {
 function renderTasks() {
   taskListEl.replaceChildren();
   taskCountEl.textContent = String(tasks.length);
-  taskTableEl.hidden = tasks.length === 0;
-  emptyTasksEl.hidden = tasks.length > 0;
+  homeStageEl.classList.toggle("has-tasks", tasks.length > 0);
 
   for (const task of tasks) {
     const row = document.createElement("div");
     row.className = "task" + (task.enabled ? "" : " disabled");
     row.innerHTML = `
       <div class="task-name">${escapeHtml(task.name)}</div>
-      <div class="task-cell time"><strong>${describeTask(task)}</strong></div>
-      <div class="task-cell repeat"><span class="tag">${task.type === "repeat" ? "重复" : "一次性"}</span></div>
-      <div class="task-cell theme">${themeName(task.themeId)}</div>
       <div class="task-cell enabled">
         <input class="switch" type="checkbox" ${task.enabled ? "checked" : ""} data-toggle="${task.id}" aria-label="${escapeHtml(task.name)}启用状态" />
+      </div>
+      <div class="task-meta">
+        <span class="task-cell time"><strong>${describeTask(task)}</strong></span>
+        <span class="task-cell repeat"><span class="tag">${TYPE_LABELS[task.type]}</span></span>
+        <span class="task-cell theme">${themeName(task.themeId)}</span>
       </div>
       <div class="actions">
         <button class="btn small" type="button" data-preview-task="${task.id}">预览</button>
@@ -382,57 +417,165 @@ function renderWeekdays() {
   }
 }
 
-function currentType(): "once" | "repeat" {
-  const radio = form.querySelector<HTMLInputElement>('input[name="ttype"]:checked');
-  return (radio?.value as "once" | "repeat") ?? "once";
+let currentType: TaskType = "once";
+let currentTargetMode: TimeMode = "time";
+
+function setType(type: TaskType) {
+  currentType = type;
+  typeSegEl.querySelectorAll<HTMLButtonElement>("[data-type]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.type === type));
+  });
+  if (type === "repeat") currentTargetMode = "time"; // weekday tasks only need a time of day
+  syncTypeUI();
+}
+
+function setTargetMode(mode: TimeMode) {
+  currentTargetMode = mode;
+  targetModeSegEl.querySelectorAll<HTMLButtonElement>("[data-target-mode]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.targetMode === mode));
+  });
+  syncTypeUI();
 }
 
 function syncTypeUI() {
-  weekdayRow.hidden = currentType() !== "repeat";
+  targetRow.hidden = currentType === "interval";
+  weekdayRow.hidden = currentType !== "repeat";
+  intervalRow.hidden = currentType !== "interval";
+  targetModeSegEl.hidden = currentType !== "once"; // time/date toggle only for one-off
+
+  const dateMode = currentType === "once" && currentTargetMode === "date";
+  fTime.hidden = dateMode;
+  fDateTime.hidden = !dateMode;
+
+  if (currentType === "repeat") {
+    timeHintEl.textContent = "在选定的星期几的该时刻触发。";
+  } else if (dateMode) {
+    timeHintEl.textContent = "选择具体日期与时间，不能早于当前时间。";
+  } else {
+    timeHintEl.textContent = "将在下一个该时刻触发（今天已过则顺延至明天）。";
+  }
 }
 
-form.querySelectorAll<HTMLInputElement>('input[name="ttype"]').forEach((radio) => {
-  radio.addEventListener("change", syncTypeUI);
+typeSegEl.querySelectorAll<HTMLButtonElement>("[data-type]").forEach((button) => {
+  button.addEventListener("click", () => setType(button.dataset.type as TaskType));
 });
+targetModeSegEl.querySelectorAll<HTMLButtonElement>("[data-target-mode]").forEach((button) => {
+  button.addEventListener("click", () => setTargetMode(button.dataset.targetMode as TimeMode));
+});
+
+function timeOfDay(t: { hour: number; minute: number; second: number }): string {
+  return `${pad(t.hour)}:${pad(t.minute)}:${pad(t.second)}`;
+}
+
+function parseTimeInput(value: string): { hour: number; minute: number; second: number } | null {
+  const match = value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const hour = +match[1];
+  const minute = +match[2];
+  const second = match[3] ? +match[3] : 0;
+  if (hour > 23 || minute > 59 || second > 59) return null;
+  return { hour, minute, second };
+}
 
 function openDialog(id?: string) {
   editingId = id ?? null;
+  const fallback = defaultTaskTime();
+  fDateTime.min = toDatetimeLocal(beijingNow());
+
   if (id) {
     const task = tasks.find((item) => item.id === id);
     if (!task) return;
     dialogTitle.textContent = "编辑任务";
     fName.value = task.name;
-    fTime.value = toDatetimeLocal(task);
-    (form.querySelector(`input[name="ttype"][value="${task.type}"]`) as HTMLInputElement).checked = true;
+    fTime.value = timeOfDay(task);
+    fDateTime.value = toDatetimeLocal(task);
+    fIntervalValue.value = String(task.intervalValue ?? 30);
+    fIntervalUnit.value = task.intervalUnit ?? "minute";
     selectedWeekdays = new Set(task.weekdays);
     fTheme.value = task.themeId;
+    currentTargetMode = task.type === "once" ? task.timeMode ?? "date" : "time";
+    setType(task.type);
   } else {
     dialogTitle.textContent = "新建任务";
     fName.value = "";
-    fTime.value = toDatetimeLocal(defaultTaskTime());
-    (form.querySelector('input[name="ttype"][value="once"]') as HTMLInputElement).checked = true;
+    fTime.value = timeOfDay(fallback);
+    fDateTime.value = toDatetimeLocal(fallback);
+    fIntervalValue.value = "30";
+    fIntervalUnit.value = "minute";
     selectedWeekdays = new Set();
     fTheme.value = THEME_META[0].id;
+    currentTargetMode = "time";
+    setType("once");
   }
-  syncTypeUI();
+  setTargetMode(currentTargetMode);
   renderWeekdays();
   dialog.showModal();
 }
 
 document.getElementById("addTask")!.addEventListener("click", () => openDialog());
+document.getElementById("addTaskCenter")!.addEventListener("click", () => openDialog());
 document.getElementById("cancelDialog")!.addEventListener("click", () => dialog.close());
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
-  const wall = parseDatetimeLocal(fTime.value);
-  if (!wall) {
-    toast("请填写有效的目标时间");
-    return;
-  }
-  const type = currentType();
-  if (type === "repeat" && selectedWeekdays.size === 0) {
-    toast("重复任务请至少选择一个星期几");
-    return;
+  const type = currentType;
+
+  let wall: { year: number; month: number; day: number; hour: number; minute: number; second: number };
+  let timeMode: TimeMode | undefined;
+  let intervalValue: number | undefined;
+  let intervalUnit: IntervalUnit | undefined;
+  let intervalAnchor: number | undefined;
+
+  if (type === "interval") {
+    const value = Math.floor(Number(fIntervalValue.value));
+    if (!Number.isFinite(value) || value < 1) {
+      toast("请填写有效的循环间隔");
+      return;
+    }
+    intervalValue = value;
+    intervalUnit = fIntervalUnit.value as IntervalUnit;
+    intervalAnchor = Date.now();
+    wall = beijingNow();
+  } else if (type === "repeat") {
+    const tod = parseTimeInput(fTime.value);
+    if (!tod) {
+      toast("请填写有效的时间");
+      return;
+    }
+    if (selectedWeekdays.size === 0) {
+      toast("重复任务请至少选择一个星期几");
+      return;
+    }
+    const base = beijingNow();
+    wall = { year: base.year, month: base.month, day: base.day, ...tod };
+  } else if (currentTargetMode === "time") {
+    const tod = parseTimeInput(fTime.value);
+    if (!tod) {
+      toast("请填写有效的时间");
+      return;
+    }
+    wall = nextOccurrence(tod.hour, tod.minute, tod.second);
+    timeMode = "time";
+  } else {
+    const parsed = parseDatetimeLocal(fDateTime.value);
+    if (!parsed) {
+      toast("请填写有效的目标时间");
+      return;
+    }
+    const epoch = beijingWallToEpoch(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second
+    );
+    if (epoch < Date.now()) {
+      toast("目标时间不能早于当前时间");
+      return;
+    }
+    wall = parsed;
+    timeMode = "date";
   }
 
   const task: Task = {
@@ -446,6 +589,10 @@ form.addEventListener("submit", (event) => {
     second: wall.second,
     type,
     weekdays: [...selectedWeekdays].sort(),
+    timeMode,
+    intervalValue,
+    intervalUnit,
+    intervalAnchor,
     themeId: fTheme.value,
     enabled: true,
     lastFiredFor: undefined,

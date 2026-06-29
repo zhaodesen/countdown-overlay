@@ -15,7 +15,21 @@ export const LS_SETTINGS = "co.settings.v1";
 export const LS_OVERLAY_CONFIG = "co.overlay.config.v1";
 
 /** Task repeat type. */
-export type TaskType = "once" | "repeat";
+export type TaskType = "once" | "repeat" | "interval";
+
+/** Unit used by interval (循环) tasks. */
+export type IntervalUnit = "second" | "minute" | "hour" | "day";
+
+/** How a one-off task's target time was specified. */
+export type TimeMode = "time" | "date";
+
+/** Milliseconds per interval unit. */
+export const UNIT_MS: Record<IntervalUnit, number> = {
+  second: 1000,
+  minute: 60_000,
+  hour: 3_600_000,
+  day: 86_400_000,
+};
 
 /** A single countdown task. */
 export interface Task {
@@ -31,6 +45,17 @@ export interface Task {
   type: TaskType;
   /** For repeat tasks: selected weekdays. 0 = Sunday … 6 = Saturday. */
   weekdays: number[];
+  /**
+   * For one-off tasks: whether the user picked just a clock time ("time",
+   * fires at the next occurrence) or a full calendar date ("date").
+   */
+  timeMode?: TimeMode;
+  /** For interval (循环) tasks: how many units between runs. */
+  intervalValue?: number;
+  /** For interval (循环) tasks: the unit of the interval. */
+  intervalUnit?: IntervalUnit;
+  /** For interval (循环) tasks: epoch-ms the cycle is measured from. */
+  intervalAnchor?: number;
   /** Theme id to play for this task. */
   themeId: string;
   enabled: boolean;

@@ -49,40 +49,29 @@
 
     <main class="app-main">
       <section class="view home-view active" data-view-panel="home">
-        <div class="time-hero" aria-label="北京时间">
-          <div class="time-label">北京时间</div>
-          <div class="clock-date" id="clockDate">--</div>
-          <div class="clock-time" id="clockTime">--:--:--</div>
+        <div class="home-stage" id="homeStage">
+          <div class="clock-panel">
+            <div class="time-hero" aria-label="北京时间">
+              <div class="time-label">北京时间</div>
+              <div class="clock-date" id="clockDate">--</div>
+              <div class="clock-time" id="clockTime">--:--:--</div>
+            </div>
+            <button class="btn primary add-cta" id="addTaskCenter">+ 新建任务</button>
+          </div>
+
+          <aside class="tasks-panel" aria-label="定时任务列表">
+            <div class="tasks-head">
+              <div class="section-title-row">
+                <h1 id="taskHeading">定时任务</h1>
+                <span class="count" id="taskCount">0</span>
+              </div>
+              <button class="btn primary" id="addTask">+ 新建任务</button>
+            </div>
+            <div class="task-scroll">
+              <div class="task-list" id="taskList"></div>
+            </div>
+          </aside>
         </div>
-
-        <section class="task-workspace" aria-labelledby="taskHeading">
-          <div class="section-head">
-            <div class="section-title-row">
-              <h1 id="taskHeading">定时任务</h1>
-              <span class="count" id="taskCount">0</span>
-            </div>
-            <button class="btn primary" id="addTask">+ 新建任务</button>
-          </div>
-
-          <div class="task-table" id="taskTable">
-            <div class="task-table-head" aria-hidden="true">
-              <span>任务名称</span>
-              <span>目标时间</span>
-              <span>重复</span>
-              <span>主题</span>
-              <span>启用</span>
-              <span>操作</span>
-            </div>
-            <div class="task-list" id="taskList"></div>
-          </div>
-
-          <div class="empty" id="emptyTasks">
-            <strong>还没有任务</strong>
-            <span>点击「新建任务」创建第一个倒计时。</span>
-          </div>
-        </section>
-
-        <footer class="page-note">所有任务时间均基于北京时间</footer>
       </section>
 
       <section class="view themes-view" data-view-panel="themes" hidden>
@@ -144,22 +133,46 @@
           <input id="f_name" type="text" maxlength="40" placeholder="例如：起飞倒计时" required />
         </label>
 
-        <label class="field">
-          <span>目标时间（北京时间，含秒）</span>
-          <input id="f_time" type="datetime-local" step="1" required />
-        </label>
-
         <div class="field">
           <span>类型</span>
-          <div class="radios">
-            <label><input type="radio" name="ttype" value="once" checked /> 一次性</label>
-            <label><input type="radio" name="ttype" value="repeat" /> 重复</label>
+          <div class="seg" id="typeSeg" role="group" aria-label="任务类型">
+            <button type="button" data-type="once" aria-pressed="true">一次性</button>
+            <button type="button" data-type="repeat" aria-pressed="false">重复</button>
+            <button type="button" data-type="interval" aria-pressed="false">循环</button>
           </div>
+        </div>
+
+        <div class="field" id="targetRow">
+          <div class="field-head">
+            <span>目标时间（北京时间）</span>
+            <div class="seg small" id="targetModeSeg" role="group" aria-label="目标时间类型">
+              <button type="button" data-target-mode="time" aria-pressed="true">时间</button>
+              <button type="button" data-target-mode="date" aria-pressed="false">日期</button>
+            </div>
+          </div>
+          <input id="f_time" type="time" step="1" />
+          <input id="f_datetime" type="datetime-local" step="1" hidden />
+          <p class="field-hint" id="timeHint">将在下一个该时刻触发（今天已过则顺延至明天）。</p>
         </div>
 
         <div class="field" id="weekdayRow" hidden>
           <span>重复（周一～周日）</span>
           <div class="weekdays" id="weekdays"></div>
+        </div>
+
+        <div class="field" id="intervalRow" hidden>
+          <span>间隔</span>
+          <div class="interval-input">
+            <span class="interval-prefix">每</span>
+            <input id="f_intervalValue" type="number" min="1" step="1" value="30" />
+            <select id="f_intervalUnit">
+              <option value="second">秒</option>
+              <option value="minute" selected>分钟</option>
+              <option value="hour">小时</option>
+              <option value="day">天</option>
+            </select>
+            <span class="interval-suffix">执行一次</span>
+          </div>
         </div>
 
         <label class="field">

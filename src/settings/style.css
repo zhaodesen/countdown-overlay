@@ -342,15 +342,131 @@ button {
 }
 
 .home-view {
+  display: flex;
+  overflow: hidden;
+}
+
+/* ---- Home stage: centered clock that splits into clock + list ---- */
+.home-stage {
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+  max-width: 1280px;
+  height: 100%;
+  padding: 0 clamp(20px, 4vw, 56px);
+  transition: gap 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-stage.has-tasks {
+  gap: clamp(28px, 4vw, 64px);
+}
+
+.clock-panel {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  text-align: center;
+  transition: align-items 320ms ease;
+}
+
+.home-stage.has-tasks .clock-panel {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.add-cta {
+  min-height: 44px;
+  padding: 10px 22px;
+}
+
+/* In split mode the centre button + label/date collapse away. */
+.home-stage.has-tasks .add-cta,
+.home-stage.has-tasks .time-label,
+.home-stage.has-tasks .clock-date {
+  max-height: 0;
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.add-cta,
+.time-label,
+.clock-date {
+  transition: opacity 260ms ease, max-height 360ms ease;
+  max-height: 80px;
+}
+
+/* ---- Tasks panel (right side) ---- */
+.tasks-panel {
+  flex: 0 1 auto;
+  width: 0;
+  max-width: 0;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(28px, 7vh, 72px) 0 24px;
+  opacity: 0;
+  transform: translateX(28px);
+  overflow: hidden;
+  pointer-events: none;
+  transition: max-width 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 360ms ease 80ms, transform 460ms cubic-bezier(0.22, 1, 0.36, 1) 80ms;
+}
+
+.home-stage.has-tasks .tasks-panel {
+  width: min(620px, 56vw);
+  max-width: 620px;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.tasks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.tasks-head h1 {
+  margin-bottom: 0;
+  font-size: clamp(18px, 1.8vw, 24px);
+  line-height: 1.1;
+}
+
+.task-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  padding-right: 6px;
   scrollbar-gutter: stable;
+}
+
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .time-hero {
   display: grid;
   justify-items: center;
-  padding: clamp(36px, 6vh, 72px) 0 clamp(34px, 5vh, 58px);
   text-align: center;
+}
+
+.home-stage.has-tasks .time-hero {
+  justify-items: start;
+  text-align: left;
 }
 
 .time-label,
@@ -469,54 +585,64 @@ p {
   font-size: 12px;
 }
 
-.task-table {
-  overflow: hidden;
+/* ---- Task cards ---- */
+.task {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "name   switch"
+    "meta   meta"
+    "actions actions";
+  align-items: center;
+  gap: 10px 14px;
+  padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
+  transition: border-color 140ms ease, background-color 140ms ease, opacity 140ms ease;
+  animation: task-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.task-table-head,
-.task {
-  display: grid;
-  grid-template-columns: minmax(170px, 1.7fr) minmax(150px, 1.25fr) minmax(90px, 0.8fr)
-    minmax(90px, 0.8fr) minmax(70px, 0.55fr) minmax(210px, 1.4fr);
-  align-items: center;
-  gap: 16px;
-  padding: 0 24px;
-}
-
-.task-table-head {
-  min-height: 54px;
-  border-bottom: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.task {
-  min-height: 76px;
-  border-bottom: 1px solid var(--line);
-  transition: background-color 140ms ease, opacity 140ms ease;
-}
-
-.task:last-child {
-  border-bottom: 0;
+@keyframes task-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .task:hover {
+  border-color: var(--line-strong);
   background: var(--surface-2);
 }
 
 .task.disabled {
-  opacity: 0.48;
+  opacity: 0.5;
 }
 
 .task-name {
+  grid-area: name;
   min-width: 0;
   font-weight: 650;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.task-cell.enabled {
+  grid-area: switch;
+  justify-self: end;
+}
+
+.task-meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
 }
 
 .task-cell {
@@ -533,7 +659,7 @@ p {
 
 .task .tag {
   display: inline-flex;
-  padding: 3px 7px;
+  padding: 3px 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--muted);
@@ -541,36 +667,13 @@ p {
 }
 
 .task .actions {
+  grid-area: actions;
   display: flex;
-  justify-content: flex-end;
-  gap: 2px;
-}
-
-.empty {
-  min-height: 210px;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 8px;
-  color: var(--muted);
-  text-align: center;
-}
-
-.empty strong {
-  color: var(--text);
-  font-size: 16px;
-}
-
-.empty span {
-  font-size: 13px;
-}
-
-.page-note {
-  padding: 22px 0 30px;
+  justify-content: flex-start;
+  gap: 4px;
+  margin-top: 2px;
+  padding-top: 10px;
   border-top: 1px solid var(--line);
-  color: var(--faint);
-  font-size: 12px;
-  text-align: center;
 }
 
 .themes-view {
@@ -792,6 +895,113 @@ p {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 16%, transparent);
 }
 
+.field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+
+.field-head > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.field-hint {
+  margin: 7px 0 0;
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Segmented control */
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.seg button {
+  min-width: 64px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.seg button[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.seg.small button {
+  min-width: 0;
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.interval-input {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.interval-input input[type="number"] {
+  width: 96px;
+  min-height: 43px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.interval-input select {
+  min-height: 43px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.interval-input input:focus,
+.interval-input select:focus {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 16%, transparent);
+}
+
+.field input[type="time"] {
+  min-height: 43px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.field input[type="time"]:focus {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 16%, transparent);
+}
+
 .radios,
 .weekdays {
   display: flex;
@@ -879,12 +1089,44 @@ p {
   .header-tools {
     gap: 10px;
   }
+}
 
-  .task-table-head,
-  .task {
-    grid-template-columns: minmax(150px, 1.4fr) minmax(135px, 1fr) 90px 90px 58px minmax(180px, 1.2fr);
-    gap: 10px;
-    padding-inline: 18px;
+/* Narrow windows: stack the clock above the task list instead of side-by-side. */
+@media (max-width: 920px) {
+  .home-view {
+    overflow: auto;
+  }
+
+  .home-stage {
+    flex-direction: column;
+    justify-content: flex-start;
+    height: auto;
+    min-height: 100%;
+    padding-block: clamp(28px, 6vh, 56px);
+  }
+
+  .home-stage.has-tasks {
+    gap: 28px;
+  }
+
+  .home-stage.has-tasks .clock-panel {
+    align-items: center;
+    text-align: center;
+  }
+
+  .home-stage.has-tasks .time-hero {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .tasks-panel {
+    transform: translateY(20px);
+  }
+
+  .home-stage.has-tasks .tasks-panel {
+    width: 100%;
+    max-width: 560px;
+    padding-top: 0;
   }
 }
 
@@ -903,60 +1145,6 @@ p {
     padding-inline: 18px;
   }
 
-  .time-hero {
-    padding-block: 30px;
-  }
-
-  .task-table-head {
-    display: none;
-  }
-
-  .task-table {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .task {
-    grid-template-columns: 1fr auto;
-    grid-template-rows: auto auto auto;
-    gap: 8px 18px;
-    min-height: 126px;
-    padding: 18px 4px;
-  }
-
-  .task-name {
-    grid-column: 1;
-  }
-
-  .task-cell.time {
-    grid-column: 1;
-  }
-
-  .task-cell.repeat,
-  .task-cell.theme {
-    grid-column: 1;
-    grid-row: 3;
-    display: inline-flex;
-    width: max-content;
-  }
-
-  .task-cell.theme {
-    margin-left: 74px;
-  }
-
-  .task-cell.enabled {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .task .actions {
-    grid-column: 2;
-    grid-row: 2 / 4;
-    align-self: end;
-    flex-direction: column;
-  }
-
   .library-head {
     align-items: start;
     flex-direction: column;
@@ -964,21 +1152,8 @@ p {
 }
 
 @media (max-width: 560px) {
-  .section-head {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .section-head .btn {
-    width: 100%;
-  }
-
   .clock-time {
     font-size: clamp(46px, 16vw, 68px);
-  }
-
-  .task-cell.theme {
-    margin-left: 0;
   }
 
   .setting-row {

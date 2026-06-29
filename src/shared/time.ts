@@ -85,6 +85,22 @@ export function defaultTaskTime(): WallClock {
   return utcToBeijing(Date.now() + 60_000);
 }
 
+/**
+ * Given a Beijing clock time (h:m:s), return the wall-clock of its next
+ * occurrence: today if that moment is still ahead, otherwise tomorrow.
+ */
+export function nextOccurrence(
+  hour: number,
+  minute: number,
+  second: number,
+  nowMs: number = Date.now()
+): WallClock {
+  const base = utcToBeijing(nowMs);
+  const todayMs = beijingWallToEpoch(base.year, base.month, base.day, hour, minute, second);
+  const targetMs = todayMs > nowMs ? todayMs : todayMs + 86_400_000;
+  return utcToBeijing(targetMs);
+}
+
 /** Parse an "<input type=datetime-local step=1>" value as Beijing wall-clock. */
 export function parseDatetimeLocal(value: string): WallClock | null {
   // Format: YYYY-MM-DDTHH:MM[:SS]
@@ -141,7 +157,7 @@ export function crossedEpoch(
  */
 export function nextFireEpoch(
   task: {
-    type: "once" | "repeat";
+    type: "once" | "repeat" | "interval";
     year: number;
     month: number;
     day: number;
@@ -149,10 +165,26 @@ export function nextFireEpoch(
     minute: number;
     second: number;
     weekdays: number[];
+    intervalValue?: number;
+    intervalUnit?: "second" | "minute" | "hour" | "day";
+    intervalAnchor?: number;
   },
   lead: number,
   nowMs: number
 ): number | null {
+  if (task.type === "interval") {
+    const unitMs = { second: 1000, minute: 60_000, hour: 3_600_000, day: 86_400_000 };
+    const period = (task.intervalValue ?? 0) * (task.intervalUnit ? unitMs[task.intervalUnit] : 0);
+    if (period <= 0) return null;
+    const leadMs = lead * 1000;
+    const anchor = task.intervalAnchor ?? nowMs;
+    // Smallest k≥1 whose fire instant (target − lead) is not already long past.
+    let k = Math.max(1, Math.floor((nowMs - anchor + leadMs) / period));
+    let fireAt = anchor + k * period - leadMs;
+    if (fireAt <= nowMs - 1500) fireAt = anchor + (k + 1) * period - leadMs;
+    return fireAt;
+  }
+
   if (task.type === "once") {
     return (
       beijingWallToEpoch(
