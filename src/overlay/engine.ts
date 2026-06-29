@@ -13,6 +13,7 @@ import type { Theme } from "./themes";
 
 export interface EngineRefs {
   numberEl: HTMLElement;
+  ghostEls: HTMLElement[];
   glowEl: HTMLElement;
   shockwaveEl: HTMLElement;
   flashEl: HTMLElement;
@@ -27,7 +28,7 @@ export interface EngineRefs {
 const DIGITS = [5, 4, 3, 2, 1];
 
 export function buildCountdown(refs: EngineRefs): gsap.core.Timeline {
-  const { numberEl, glowEl, shockwaveEl, flashEl, field, sound, theme, onComplete, onDigit } = refs;
+  const { numberEl, ghostEls, glowEl, shockwaveEl, flashEl, field, sound, theme, onComplete, onDigit } = refs;
 
   const master = gsap.timeline({ onComplete, defaults: { ease: "power3.out" } });
 
@@ -38,6 +39,9 @@ export function buildCountdown(refs: EngineRefs): gsap.core.Timeline {
     // Start-of-second: set the digit, theme hue, fire burst + sound.
     tl.call(() => {
       numberEl.textContent = String(digit);
+      ghostEls.forEach((element) => {
+        element.textContent = String(digit);
+      });
       document.body.style.setProperty("--hue", String(hue));
       field.burst(theme.burst(i));
       theme.sound.digit(sound, i);
@@ -56,12 +60,18 @@ export function buildCountdown(refs: EngineRefs): gsap.core.Timeline {
       0.02
     ).to(flashEl, { opacity: 0, duration: 0.35, ease: "power2.out" }, 0.08);
 
-    // Afterimage / residual ghost (CSS var drives layered text-shadow).
+    // Independent compositor layers avoid repainting the main glyph's text-shadow.
     tl.fromTo(
-      numberEl,
-      { ["--ghost" as string]: 0 },
-      { ["--ghost" as string]: 1, duration: 0.5, ease: "power2.out" },
+      ghostEls[0],
+      { x: 0, scale: 1, opacity: 0.28 },
+      { x: 18, scale: 1.05, opacity: 0, duration: 0.5, ease: "power2.out" },
       0.05
+    );
+    tl.fromTo(
+      ghostEls[1],
+      { x: 0, scale: 1, opacity: 0.2 },
+      { x: -18, scale: 1.08, opacity: 0, duration: 0.55, ease: "power2.out" },
+      0.07
     );
 
     // Center shockwave ring.

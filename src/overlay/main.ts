@@ -13,6 +13,10 @@ import { readOverlayConfig } from "../shared/storage";
 import { EVENT_FINISHED } from "../shared/types";
 
 const numberEl = document.getElementById("number") as HTMLElement;
+const ghostEls = [
+  document.getElementById("ghostA") as HTMLElement,
+  document.getElementById("ghostB") as HTMLElement,
+];
 const glowEl = document.getElementById("glow") as HTMLElement;
 const shockwaveEl = document.getElementById("shockwave") as HTMLElement;
 const flashEl = document.getElementById("flash") as HTMLElement;
@@ -22,7 +26,15 @@ const fxCanvas = document.getElementById("fx") as HTMLCanvasElement;
 const smokeCanvas = document.getElementById("smoke") as HTMLCanvasElement;
 const fluidCanvas = document.getElementById("fluid") as HTMLCanvasElement;
 
-const cfg = readOverlayConfig();
+const params = new URLSearchParams(window.location.search);
+const queryTheme = params.get("theme");
+const cfg = queryTheme
+  ? {
+      themeId: queryTheme,
+      soundOn: params.get("sound") !== "0",
+      preview: params.get("preview") === "1",
+    }
+  : readOverlayConfig();
 const theme = getTheme(cfg.themeId);
 
 // In the browser (vite dev preview) there is no Tauri window; guard it.
@@ -33,7 +45,6 @@ document.body.classList.add(theme.bodyClass);
 if (theme.banner) bannerEl.textContent = theme.banner;
 
 const field = new ParticleField(fxCanvas);
-field.start();
 const background = createBackground(bgCanvas, theme.bg);
 
 const sound = new SoundEngine(cfg.soundOn);
@@ -110,6 +121,7 @@ async function run() {
 
   timeline = buildCountdown({
     numberEl,
+    ghostEls,
     glowEl,
     shockwaveEl,
     flashEl,

@@ -7,6 +7,8 @@
  * implementation later without touching the themes.
  */
 
+import { adaptiveCanvasDpr } from "./performance";
+
 export type ParticleShape = "circle" | "spark" | "rect" | "star" | "petal";
 
 export interface BurstOptions {
@@ -54,7 +56,7 @@ export class ParticleField {
   private ctx: CanvasRenderingContext2D;
   private particles: Particle[] = [];
   private waves: Wave[] = [];
-  private dpr = Math.min(window.devicePixelRatio || 1, 2);
+  private dpr = adaptiveCanvasDpr();
   private raf = 0;
   private last = 0;
   private running = false;
@@ -68,7 +70,7 @@ export class ParticleField {
   }
 
   private resize = () => {
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.dpr = adaptiveCanvasDpr();
     this.canvas.width = Math.floor(window.innerWidth * this.dpr);
     this.canvas.height = Math.floor(window.innerHeight * this.dpr);
     this.canvas.style.width = window.innerWidth + "px";
@@ -127,6 +129,7 @@ export class ParticleField {
     if (opts.shockwave ?? true) {
       this.waves.push({ x: cx, y: cy, t: 0, color: opts.shockColor ?? color(0.5) });
     }
+    this.start();
   }
 
   private drawShape(p: Particle, alpha: number) {
@@ -240,6 +243,11 @@ export class ParticleField {
     }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";
+    if (this.particles.length === 0 && this.waves.length === 0) {
+      this.running = false;
+      this.raf = 0;
+      return;
+    }
     this.raf = requestAnimationFrame(this.loop);
   };
 

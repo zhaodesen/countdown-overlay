@@ -13,6 +13,8 @@ import {
 import {
   AppSettings,
   EVENT_FINISHED,
+  EVENT_SCHEDULE_FIRED,
+  SchedulerFiredPayload,
   IntervalUnit,
   Task,
   TaskType,
@@ -112,7 +114,7 @@ function tickClock() {
   clockDateEl.textContent = `${now.year}年${pad(now.month)}月${pad(now.day)}日  ${WEEKDAYS[now.weekday]}`;
   clockTimeEl.textContent = `${pad(now.hour)}:${pad(now.minute)}:${pad(now.second)}`;
 }
-setInterval(tickClock, 200);
+setInterval(tickClock, 1000);
 tickClock();
 
 /* ---------------- Appearance and sound ---------------- */
@@ -176,6 +178,7 @@ function setSound(enabled: boolean) {
   settings.soundOn = enabled;
   saveSettings(settings);
   renderSound();
+  if (syncNativeScheduler()) renderTasks();
 }
 
 soundToggle.addEventListener("click", () => setSound(!settings.soundOn));
@@ -193,7 +196,11 @@ async function openOverlay(themeId: string, preview: boolean) {
     return;
   }
   try {
-    await invoke("show_overlay");
+    await invoke("show_overlay", {
+      themeId,
+      soundOn: settings.soundOn,
+      preview,
+    });
   } catch (error) {
     toast(`无法打开 Overlay：${String(error)}`);
   }
@@ -396,6 +403,7 @@ function escapeHtml(value: string): string {
 
 function persist() {
   saveTasks(tasks);
+  syncNativeScheduler();
 }
 
 /* ---------------- Task dialog ---------------- */
@@ -607,6 +615,52 @@ form.addEventListener("submit", (event) => {
 });
 
 /* ---------------- Scheduler ---------------- */
+interface NativeScheduleEntry {
+  taskId: string;
+  fireAtMs: number;
+  themeId: string;
+  soundOn: boolean;
+}
+
+function syncNativeScheduler(): boolean {
+  if (!isTauri) return false;
+
+  const now = Date.now();
+  const entries: NativeScheduleEntry[] = [];
+  let normalized = false;
+
+  for (const task of tasks) {
+    if (!task.enabled) continue;
+    let fireAt = nextFireEpoch(task, TRIGGER_LEAD_SECONDS, now);
+    if (fireAt == null) continue;
+
+    if (task.type === "once" && fireAt <= now) {
+      task.enabled = false;
+      normalized = true;
+      continue;
+    }
+
+    if (task.type === "repeat" && task.lastFiredFor === fireAt) {
+      fireAt = nextFireEpoch(task, TRIGGER_LEAD_SECONDS, fireAt + 1501);
+      if (fireAt == null) continue;
+    }
+
+    entries.push({
+      taskId: task.id,
+      fireAtMs: fireAt,
+      themeId: task.themeId,
+      soundOn: settings.soundOn,
+    });
+  }
+
+  if (normalized) saveTasks(tasks);
+  void invoke("sync_scheduler", { entries }).catch((error) => {
+    console.warn("Unable to sync native scheduler:", error);
+  });
+  return normalized;
+}
+
+// Browser-only fallback. Native builds use the Rust deadline scheduler below.
 let lastSchedulerCheckAt = Date.now();
 
 function schedulerTick() {
@@ -636,7 +690,7 @@ function schedulerTick() {
     renderTasks();
   }
 }
-setInterval(schedulerTick, 500);
+if (!isTauri) setInterval(schedulerTick, 500);
 
 /* ---------------- Init ---------------- */
 fillThemeSelect();
@@ -645,4 +699,15 @@ showView(viewFromHash(), false);
 
 if (isTauri) {
   void listen(EVENT_FINISHED, () => toast("倒计时结束，已返回控制台"));
+  void listen<SchedulerFiredPayload>(EVENT_SCHEDULE_FIRED, ({ payload }) => {
+    const task = tasks.find((item) => item.id === payload.taskId);
+    if (!task) return;
+    task.lastFiredFor = payload.fireAtMs;
+    if (task.type === "once") task.enabled = false;
+    persist();
+    renderTasks();
+    toast(payload.opened ? `触发任务：${task.name}` : `任务触发失败：${task.name}`);
+  }).then(() => {
+    if (syncNativeScheduler()) renderTasks();
+  });
 }

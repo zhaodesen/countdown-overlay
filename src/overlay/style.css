@@ -76,20 +76,29 @@ body {
 }
 
 .number {
-  --ghost: 0;
   --num-font: "Orbitron", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-family: var(--num-font);
   font-weight: 900;
   font-size: min(46vh, 46vw);
   line-height: 1;
   color: hsl(var(--hue), 100%, 92%);
-  text-shadow: 0 0 calc(20px + var(--ghost) * 30px)
-      hsla(var(--hue), 100%, 60%, calc(0.7 + var(--ghost) * 0.3)),
-    0 0 calc(60px + var(--ghost) * 80px) hsla(var(--hue), 100%, 55%, 0.7),
-    calc(var(--ghost) * 14px) 0 28px hsla(var(--hue), 100%, 60%, 0.35),
-    calc(var(--ghost) * -14px) 0 28px hsla(calc(var(--hue) + 30), 100%, 60%, 0.35);
+  text-shadow: 0 0 20px hsla(var(--hue), 100%, 60%, 0.7),
+    0 0 60px hsla(var(--hue), 100%, 55%, 0.7);
   will-change: transform, filter, opacity;
   transform: translateZ(0);
+}
+
+#number {
+  position: relative;
+  z-index: 2;
+}
+
+.number-ghost {
+  position: absolute;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
 }
 
 .glow {
@@ -199,8 +208,7 @@ body {
   --num-font: "Orbitron", "Segoe UI", monospace;
   color: #fff;
   text-shadow: 3px 0 0 #ff2e9a, -3px 0 0 #15e1ff,
-    0 0 calc(24px + var(--ghost) * 40px) #ff2e9a,
-    0 0 calc(60px + var(--ghost) * 80px) #15e1ff;
+    0 0 24px #ff2e9a, 0 0 60px #15e1ff;
 }
 
 /* 科技 HUD */
@@ -219,8 +227,8 @@ body {
 .t-wuxia .number {
   --num-font: "STKaiti", "KaiTi", "楷体", "Songti SC", serif;
   color: #ffe6a8;
-  text-shadow: 0 0 calc(18px + var(--ghost) * 30px) #e8b84b,
-    0 0 calc(50px + var(--ghost) * 60px) #b3151b, 2px 2px 6px rgba(80, 0, 0, 0.6);
+  text-shadow: 0 0 18px #e8b84b, 0 0 50px #b3151b,
+    2px 2px 6px rgba(80, 0, 0, 0.6);
 }
 .t-wuxia .banner-text {
   font-family: "STKaiti", "KaiTi", serif;
@@ -234,8 +242,7 @@ body {
 .t-ink .number {
   --num-font: "STKaiti", "KaiTi", "楷体", serif;
   color: #161616;
-  text-shadow: calc(var(--ghost) * 10px) calc(var(--ghost) * 6px) 12px rgba(0, 0, 0, 0.4),
-    0 0 calc(var(--ghost) * 8px) rgba(0, 0, 0, 0.5);
+  text-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
 }
 .t-ink .top-fx { display: none; }
 
@@ -249,7 +256,7 @@ body {
   -webkit-text-stroke: 8px #2b2b5a;
   paint-order: stroke fill;
   text-shadow: 0 8px 0 rgba(0, 0, 0, 0.25),
-    0 0 calc(20px + var(--ghost) * 24px) hsla(var(--hue), 100%, 65%, 0.9);
+    0 0 20px hsla(var(--hue), 100%, 65%, 0.9);
 }
 .t-cartoon .banner-text { font-family: "Comic Sans MS", sans-serif; }
 
@@ -260,9 +267,7 @@ body {
 .t-flame .number {
   --num-font: "Orbitron", "Segoe UI", sans-serif;
   color: #fff0c8;
-  text-shadow: 0 0 calc(20px + var(--ghost) * 36px) #ff7b00,
-    0 0 calc(48px + var(--ghost) * 70px) #ff2e00,
-    0 -6px 30px #ffcf3a;
+  text-shadow: 0 0 20px #ff7b00, 0 0 48px #ff2e00, 0 -6px 30px #ffcf3a;
 }
 
 /* 冰霜 — ice */
@@ -272,8 +277,8 @@ body {
 .t-frost .number {
   --num-font: "Orbitron", "Segoe UI", sans-serif;
   color: #eafaff;
-  text-shadow: 0 0 calc(18px + var(--ghost) * 30px) #9ad6ff,
-    0 0 calc(50px + var(--ghost) * 64px) #3aa0ff, 0 2px 8px rgba(255, 255, 255, 0.6);
+  text-shadow: 0 0 18px #9ad6ff, 0 0 50px #3aa0ff,
+    0 2px 8px rgba(255, 255, 255, 0.6);
 }
 
 /* 星空 — cosmic */
@@ -283,8 +288,7 @@ body {
 .t-galaxy .number {
   --num-font: "Orbitron", "Segoe UI", sans-serif;
   color: #f0e9ff;
-  text-shadow: 0 0 calc(20px + var(--ghost) * 34px) #b48bff,
-    0 0 calc(54px + var(--ghost) * 70px) #7b5cff;
+  text-shadow: 0 0 20px #b48bff, 0 0 54px #7b5cff;
 }
 
 /* 复古街机 — CRT */
@@ -294,7 +298,7 @@ body {
 .t-retro .number {
   --num-font: "Courier New", monospace;
   color: #39ff14;
-  text-shadow: 0 0 calc(14px + var(--ghost) * 22px) #39ff14, 2px 2px 0 #0a5d0a;
+  text-shadow: 0 0 14px #39ff14, 2px 2px 0 #0a5d0a;
   letter-spacing: 2px;
 }
 .t-retro .banner-text { font-family: "Courier New", monospace; }
@@ -320,8 +324,8 @@ body {
 .t-gold .number {
   --num-font: "Times New Roman", "Songti SC", serif;
   color: #fff4c2;
-  text-shadow: 0 0 calc(18px + var(--ghost) * 30px) #ffd700,
-    0 0 calc(50px + var(--ghost) * 64px) #ff8c00, 0 3px 6px rgba(120, 80, 0, 0.6);
+  text-shadow: 0 0 18px #ffd700, 0 0 50px #ff8c00,
+    0 3px 6px rgba(120, 80, 0, 0.6);
 }
 
 /* 烟雾 — realistic smoke (monochrome, clean) */
@@ -331,8 +335,7 @@ body {
 .t-smoke .number {
   --num-font: "Helvetica Neue", "Segoe UI", "PingFang SC", system-ui, sans-serif;
   color: #f2f5fa;
-  text-shadow: 0 0 calc(16px + var(--ghost) * 26px) rgba(255, 255, 255, 0.55),
-    0 0 calc(44px + var(--ghost) * 56px) rgba(170, 190, 220, 0.45),
-    0 4px 18px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 0 16px rgba(255, 255, 255, 0.55),
+    0 0 44px rgba(170, 190, 220, 0.45), 0 4px 18px rgba(0, 0, 0, 0.6);
 }
 .t-smoke .top-fx { display: none; }
