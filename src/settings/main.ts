@@ -46,14 +46,14 @@ const clockTimeEl = document.getElementById("clockTime") as HTMLElement;
 const themeToggle = document.getElementById("themeToggle") as HTMLButtonElement;
 const soundToggle = document.getElementById("soundToggle") as HTMLButtonElement;
 const settingsSoundToggle = document.getElementById("settingsSoundToggle") as HTMLInputElement;
-const taskListEl = document.getElementById("taskList") as HTMLElement;
-const taskCountEl = document.getElementById("taskCount") as HTMLElement;
-const tasksHeadEl = document.getElementById("tasksHead") as HTMLElement;
-const taskScrollEl = document.getElementById("taskScroll") as HTMLElement;
-const homeEmptyEl = document.getElementById("homeEmpty") as HTMLElement;
+const taskListEl = document.getElementById("taskList") as HTMLElement | null;
+const taskCountEl = document.getElementById("taskCount") as HTMLElement | null;
+const tasksHeadEl = document.getElementById("tasksHead") as HTMLElement | null;
+const taskScrollEl = document.getElementById("taskScroll") as HTMLElement | null;
+const homeEmptyEl = document.getElementById("homeEmpty") as HTMLElement | null;
 const themeViewportEl = document.getElementById("themeViewport") as HTMLElement;
 const themeCanvasEl = document.getElementById("themeVirtualCanvas") as HTMLElement;
-const statusEl = document.getElementById("status") as HTMLElement;
+const statusEl = document.getElementById("status") as HTMLElement | null;
 
 const modal = document.getElementById("taskModal") as HTMLElement;
 const form = document.getElementById("taskForm") as HTMLFormElement;
@@ -76,6 +76,7 @@ const dialogErrorEl = document.getElementById("dialogError") as HTMLElement;
 /* ---------------- Status toast ---------------- */
 let statusTimer = 0;
 function toast(message: string) {
+  if (!statusEl) return;
   statusEl.textContent = message;
   statusEl.classList.add("show");
   clearTimeout(statusTimer);
@@ -107,6 +108,24 @@ document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((button) => 
   button.addEventListener("click", () => showView(button.dataset.view as ViewName));
 });
 window.addEventListener("hashchange", () => showView(viewFromHash(), false));
+
+/* ---------------- Collapsible sidebar ---------------- */
+const navToggle = document.getElementById("navToggle");
+function setNavCollapsed(collapsed: boolean) {
+  document.documentElement.classList.toggle("nav-collapsed", collapsed);
+  navToggle?.setAttribute("aria-pressed", String(collapsed));
+  navToggle?.setAttribute("title", collapsed ? "展开菜单" : "折叠菜单");
+  try {
+    localStorage.setItem("co.navCollapsed", collapsed ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+navToggle?.addEventListener("click", () => {
+  setNavCollapsed(!document.documentElement.classList.contains("nav-collapsed"));
+});
+// Reflect the pre-paint state (applied by the inline head script) on the button.
+setNavCollapsed(document.documentElement.classList.contains("nav-collapsed"));
 
 /* ---------------- Beijing clock (racing lap-timer reels) ---------------- */
 interface Reel {
@@ -398,25 +417,27 @@ function describeTask(task: Task): string {
 }
 
 function renderTasks() {
-  taskListEl.replaceChildren();
-  taskCountEl.textContent = String(tasks.length);
   const hasTasks = tasks.length > 0;
-  tasksHeadEl.hidden = !hasTasks;
-  taskScrollEl.hidden = !hasTasks;
-  homeEmptyEl.hidden = hasTasks;
+  // Optional UI bits — guard so removing any of them from the HTML can't crash.
+  if (taskCountEl) taskCountEl.textContent = String(tasks.length);
+  if (tasksHeadEl) tasksHeadEl.hidden = !hasTasks;
+  if (taskScrollEl) taskScrollEl.hidden = !hasTasks;
+  if (homeEmptyEl) homeEmptyEl.hidden = hasTasks;
+  if (!taskListEl) return;
+
+  taskListEl.replaceChildren();
 
   for (const task of tasks) {
     const row = document.createElement("div");
     row.className = "task" + (task.enabled ? "" : " disabled");
     row.innerHTML = `
-      <div class="task-name">${escapeHtml(task.name)}</div>
+      <div class="task-time">${describeTask(task)}</div>
       <div class="task-cell enabled">
         <input class="switch" type="checkbox" ${task.enabled ? "checked" : ""} data-toggle="${task.id}" aria-label="${escapeHtml(task.name)}启用状态" />
       </div>
-      <div class="task-meta">
-        <span class="task-cell time"><strong>${describeTask(task)}</strong></span>
-        <span class="task-cell repeat"><span class="tag">${TYPE_LABELS[task.type]}</span></span>
-        <span class="task-cell theme">${themeName(task.themeId)}</span>
+      <div class="task-sub">
+        <span class="task-type">${TYPE_LABELS[task.type]}</span>
+        <span class="task-name">${escapeHtml(task.name)}</span>
       </div>
       <div class="actions">
         <button class="btn small" type="button" data-preview-task="${task.id}">预览</button>
