@@ -42,19 +42,20 @@ let settings: AppSettings = loadSettings();
 type ViewName = "home" | "themes" | "settings";
 
 /* ---------------- DOM refs ---------------- */
-const clockDateEl = document.getElementById("clockDate") as HTMLElement;
 const clockTimeEl = document.getElementById("clockTime") as HTMLElement;
 const themeToggle = document.getElementById("themeToggle") as HTMLButtonElement;
 const soundToggle = document.getElementById("soundToggle") as HTMLButtonElement;
 const settingsSoundToggle = document.getElementById("settingsSoundToggle") as HTMLInputElement;
-const homeStageEl = document.getElementById("homeStage") as HTMLElement;
 const taskListEl = document.getElementById("taskList") as HTMLElement;
 const taskCountEl = document.getElementById("taskCount") as HTMLElement;
+const tasksHeadEl = document.getElementById("tasksHead") as HTMLElement;
+const taskScrollEl = document.getElementById("taskScroll") as HTMLElement;
+const homeEmptyEl = document.getElementById("homeEmpty") as HTMLElement;
 const themeViewportEl = document.getElementById("themeViewport") as HTMLElement;
 const themeCanvasEl = document.getElementById("themeVirtualCanvas") as HTMLElement;
 const statusEl = document.getElementById("status") as HTMLElement;
 
-const dialog = document.getElementById("taskDialog") as HTMLDialogElement;
+const modal = document.getElementById("taskModal") as HTMLElement;
 const form = document.getElementById("taskForm") as HTMLFormElement;
 const dialogTitle = document.getElementById("dialogTitle") as HTMLElement;
 const fName = document.getElementById("f_name") as HTMLInputElement;
@@ -70,6 +71,7 @@ const timeHintEl = document.getElementById("timeHint") as HTMLElement;
 const weekdayRow = document.getElementById("weekdayRow") as HTMLElement;
 const weekdaysEl = document.getElementById("weekdays") as HTMLElement;
 const intervalRow = document.getElementById("intervalRow") as HTMLElement;
+const dialogErrorEl = document.getElementById("dialogError") as HTMLElement;
 
 /* ---------------- Status toast ---------------- */
 let statusTimer = 0;
@@ -106,13 +108,68 @@ document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((button) => 
 });
 window.addEventListener("hashchange", () => showView(viewFromHash(), false));
 
-/* ---------------- Beijing clock ---------------- */
-const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+/* ---------------- Beijing clock (racing lap-timer reels) ---------------- */
+interface Reel {
+  strip: HTMLElement;
+  value: number;
+}
+let reels: Reel[] = [];
+
+function setStripPos(strip: HTMLElement, pos: number, animate: boolean) {
+  strip.style.transition = animate
+    ? "transform 360ms cubic-bezier(0.2, 0.85, 0.25, 1)"
+    : "none";
+  strip.style.transform = `translateY(${-pos}em)`;
+}
+
+function setDigit(reel: Reel, digit: number) {
+  if (digit === reel.value) return;
+  if (digit >= reel.value) {
+    setStripPos(reel.strip, digit, true); // roll forward
+  } else {
+    // forward-wrap through the trailing "0" cell (index 10) then snap back
+    setStripPos(reel.strip, 10, true);
+    const onEnd = () => {
+      reel.strip.removeEventListener("transitionend", onEnd);
+      setStripPos(reel.strip, digit, false);
+    };
+    reel.strip.addEventListener("transitionend", onEnd);
+  }
+  reel.value = digit;
+}
+
+function buildClock(template: string) {
+  clockTimeEl.replaceChildren();
+  reels = [];
+  for (const ch of template) {
+    if (ch === ":") {
+      const sep = document.createElement("span");
+      sep.className = "sep";
+      sep.textContent = ":";
+      clockTimeEl.appendChild(sep);
+      continue;
+    }
+    const reel = document.createElement("span");
+    reel.className = "reel";
+    const strip = document.createElement("span");
+    strip.className = "reel-strip";
+    for (let n = 0; n <= 10; n++) {
+      const cell = document.createElement("span");
+      cell.className = "reel-cell";
+      cell.textContent = String(n % 10);
+      strip.appendChild(cell);
+    }
+    reel.appendChild(strip);
+    clockTimeEl.appendChild(reel);
+    reels.push({ strip, value: 0 });
+  }
+}
 
 function tickClock() {
   const now = beijingNow();
-  clockDateEl.textContent = `${now.year}年${pad(now.month)}月${pad(now.day)}日  ${WEEKDAYS[now.weekday]}`;
-  clockTimeEl.textContent = `${pad(now.hour)}:${pad(now.minute)}:${pad(now.second)}`;
+  const digits = `${pad(now.hour)}${pad(now.minute)}${pad(now.second)}`;
+  if (reels.length !== digits.length) buildClock("00:00:00");
+  for (let i = 0; i < digits.length; i++) setDigit(reels[i], +digits[i]);
 }
 setInterval(tickClock, 1000);
 tickClock();
@@ -343,7 +400,10 @@ function describeTask(task: Task): string {
 function renderTasks() {
   taskListEl.replaceChildren();
   taskCountEl.textContent = String(tasks.length);
-  homeStageEl.classList.toggle("has-tasks", tasks.length > 0);
+  const hasTasks = tasks.length > 0;
+  tasksHeadEl.hidden = !hasTasks;
+  taskScrollEl.hidden = !hasTasks;
+  homeEmptyEl.hidden = hasTasks;
 
   for (const task of tasks) {
     const row = document.createElement("div");
@@ -517,15 +577,34 @@ function openDialog(id?: string) {
   }
   setTargetMode(currentTargetMode);
   renderWeekdays();
-  dialog.showModal();
+  clearDialogError();
+  openModal();
 }
 
-document.getElementById("addTask")!.addEventListener("click", () => openDialog());
-document.getElementById("addTaskCenter")!.addEventListener("click", () => openDialog());
-document.getElementById("cancelDialog")!.addEventListener("click", () => dialog.close());
+function openModal() {
+  modal.hidden = false;
+  // next frame so the CSS transition runs
+  requestAnimationFrame(() => modal.classList.add("open"));
+  requestAnimationFrame(() => fName.focus());
+}
 
-form.addEventListener("submit", (event) => {
-  event.preventDefault();
+function closeModal() {
+  modal.classList.remove("open");
+  modal.hidden = true;
+}
+
+function showDialogError(message: string) {
+  dialogErrorEl.textContent = message;
+  dialogErrorEl.hidden = false;
+}
+
+function clearDialogError() {
+  dialogErrorEl.textContent = "";
+  dialogErrorEl.hidden = true;
+}
+
+function submitTask() {
+  clearDialogError();
   const type = currentType;
 
   let wall: { year: number; month: number; day: number; hour: number; minute: number; second: number };
@@ -537,7 +616,7 @@ form.addEventListener("submit", (event) => {
   if (type === "interval") {
     const value = Math.floor(Number(fIntervalValue.value));
     if (!Number.isFinite(value) || value < 1) {
-      toast("请填写有效的循环间隔");
+      showDialogError("请填写有效的循环间隔");
       return;
     }
     intervalValue = value;
@@ -547,11 +626,11 @@ form.addEventListener("submit", (event) => {
   } else if (type === "repeat") {
     const tod = parseTimeInput(fTime.value);
     if (!tod) {
-      toast("请填写有效的时间");
+      showDialogError("请填写有效的时间");
       return;
     }
     if (selectedWeekdays.size === 0) {
-      toast("重复任务请至少选择一个星期几");
+      showDialogError("重复任务请至少选择一个星期几");
       return;
     }
     const base = beijingNow();
@@ -559,7 +638,7 @@ form.addEventListener("submit", (event) => {
   } else if (currentTargetMode === "time") {
     const tod = parseTimeInput(fTime.value);
     if (!tod) {
-      toast("请填写有效的时间");
+      showDialogError("请填写有效的时间");
       return;
     }
     wall = nextOccurrence(tod.hour, tod.minute, tod.second);
@@ -567,7 +646,7 @@ form.addEventListener("submit", (event) => {
   } else {
     const parsed = parseDatetimeLocal(fDateTime.value);
     if (!parsed) {
-      toast("请填写有效的目标时间");
+      showDialogError("请填写有效的目标时间");
       return;
     }
     const epoch = beijingWallToEpoch(
@@ -579,7 +658,7 @@ form.addEventListener("submit", (event) => {
       parsed.second
     );
     if (epoch < Date.now()) {
-      toast("目标时间不能早于当前时间");
+      showDialogError("目标时间不能早于当前时间");
       return;
     }
     wall = parsed;
@@ -610,8 +689,21 @@ form.addEventListener("submit", (event) => {
   else tasks.push(task);
   persist();
   renderTasks();
-  dialog.close();
+  closeModal();
   toast(editingId ? "已保存修改" : "已创建任务");
+}
+
+document.getElementById("addTask")!.addEventListener("click", () => openDialog());
+document.getElementById("cancelDialog")!.addEventListener("click", () => closeModal());
+document.getElementById("saveTask")!.addEventListener("click", () => submitTask());
+
+// Enter saves, Escape closes — no reliance on native <dialog> behaviour.
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  submitTask();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !modal.hidden) closeModal();
 });
 
 /* ---------------- Scheduler ---------------- */

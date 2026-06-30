@@ -49,28 +49,44 @@
 
     <main class="app-main">
       <section class="view home-view active" data-view-panel="home">
-        <div class="home-stage" id="homeStage">
-          <div class="clock-panel">
-            <div class="time-hero" aria-label="北京时间">
-              <div class="time-label">北京时间</div>
-              <div class="clock-date" id="clockDate">--</div>
-              <div class="clock-time" id="clockTime">--:--:--</div>
+        <div class="home-top">
+          <div class="time-hero" aria-label="北京时间">
+            <div class="clock-time" id="clockTime">--:--:--</div>
+          </div>
+          <button class="btn primary add-top" id="addTask">+ 新建任务</button>
+        </div>
+
+        <div class="home-body">
+          <div class="tasks-head" id="tasksHead" hidden>
+            <div class="section-title-row">
+              <h1 id="taskHeading">定时任务</h1>
+              <span class="count" id="taskCount">0</span>
             </div>
-            <button class="btn primary add-cta" id="addTaskCenter">+ 新建任务</button>
+          </div>
+          <div class="task-scroll" id="taskScroll" hidden>
+            <div class="task-list" id="taskList"></div>
           </div>
 
-          <aside class="tasks-panel" aria-label="定时任务列表">
-            <div class="tasks-head">
-              <div class="section-title-row">
-                <h1 id="taskHeading">定时任务</h1>
-                <span class="count" id="taskCount">0</span>
-              </div>
-              <button class="btn primary" id="addTask">+ 新建任务</button>
-            </div>
-            <div class="task-scroll">
-              <div class="task-list" id="taskList"></div>
-            </div>
-          </aside>
+          <div class="home-empty" id="homeEmpty">
+            <svg class="empty-art" viewBox="0 0 240 200" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="120" cy="178" rx="78" ry="11" class="art-shadow" />
+              <circle cx="120" cy="96" r="62" class="art-ring" />
+              <circle cx="120" cy="96" r="50" class="art-face" />
+              <path d="M120 96 L120 62" class="art-hand-h" />
+              <path d="M120 96 L146 108" class="art-hand-m" />
+              <circle cx="120" cy="96" r="4.5" class="art-pin" />
+              <path d="M104 30 L136 30" class="art-top" />
+              <path d="M120 30 L120 22" class="art-stem" />
+              <g class="art-spark art-spark-a">
+                <path d="M196 52 L196 70 M187 61 L205 61" class="art-plus" />
+              </g>
+              <g class="art-spark art-spark-b">
+                <path d="M44 120 L44 134 M37 127 L51 127" class="art-plus" />
+              </g>
+            </svg>
+            <strong>还没有任务</strong>
+            <span>点击右上角「+ 新建任务」创建第一个倒计时。</span>
+          </div>
         </div>
       </section>
 
@@ -121,9 +137,10 @@
       </section>
     </main>
 
-    <dialog id="taskDialog" class="dialog">
-      <form method="dialog" id="taskForm">
-        <div class="dialog-head">
+    <div id="taskModal" class="modal" hidden>
+      <div class="modal-backdrop" data-tauri-drag-region></div>
+      <form id="taskForm" class="modal-card" novalidate role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+        <div class="dialog-head" data-tauri-drag-region>
           <div class="eyebrow">任务配置</div>
           <h3 id="dialogTitle">新建任务</h3>
         </div>
@@ -180,12 +197,14 @@
           <select id="f_theme"></select>
         </label>
 
+        <p class="dialog-error" id="dialogError" role="alert" hidden></p>
+
         <div class="dialog-actions">
           <button type="button" class="btn" id="cancelDialog">取消</button>
-          <button type="submit" class="btn primary" id="saveTask">保存</button>
+          <button type="button" class="btn primary" id="saveTask">保存</button>
         </div>
       </form>
-    </dialog>
+    </div>
 
     <div class="status" id="status" role="status"></div>
 
