@@ -1,0 +1,19 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "bang",
+        "decorations": false,
+        "width": 1180,
+        "height": 700,
+        "minWidth": 760,
+        "minHeight": 560,
+        "resizable": true,
+        "maximizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ]
+  }
+}

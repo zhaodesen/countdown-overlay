@@ -36,6 +36,16 @@ import {
 const isTauri = "__TAURI_INTERNALS__" in window;
 const pad = (n: number) => String(n).padStart(2, "0");
 
+if (isTauri && document.documentElement.classList.contains("os-win")) {
+  const appWindow = getCurrentWindow();
+  document.getElementById("titlebarMinimize")?.addEventListener("click", () => void appWindow.minimize());
+  document.getElementById("titlebarMaximize")?.addEventListener("click", () => void appWindow.toggleMaximize());
+  document.getElementById("titlebarClose")?.addEventListener("click", () => void appWindow.close());
+  document.querySelector<HTMLElement>(".titlebar-left")?.addEventListener("dblclick", (event) => {
+    if (!(event.target as HTMLElement).closest("button")) void appWindow.toggleMaximize();
+  });
+}
+
 let tasks: Task[] = loadTasks();
 let settings: AppSettings = loadSettings();
 

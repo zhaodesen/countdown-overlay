@@ -14,8 +14,10 @@
         }
         // Platform class (set pre-paint to avoid a layout flash).
         // Only macOS has the left-side traffic lights that need a spacer.
-        var isMac = /Mac/i.test(navigator.platform || navigator.userAgent);
-        document.documentElement.classList.add(isMac ? "os-mac" : "os-other");
+        var platform = navigator.platform || navigator.userAgent;
+        var isMac = /Mac/i.test(platform);
+        var isWindows = /Win/i.test(platform);
+        document.documentElement.classList.add(isMac ? "os-mac" : isWindows ? "os-win" : "os-other");
       } catch {
         document.documentElement.dataset.theme = "dark";
       }
@@ -24,6 +26,10 @@
   <body>
     <div class="titlebar-left" data-tauri-drag-region>
       <span class="traffic-spacer" aria-hidden="true"></span>
+      <div class="windows-titlebar-brand" aria-hidden="true">
+        <img src="/bang-logo.svg" alt="" draggable="false" />
+        <span>bang</span>
+      </div>
       <button class="tool-btn" id="navToggle" type="button" aria-label="折叠/展开菜单" aria-pressed="false" title="折叠菜单">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect class="panel-fill" x="3.6" y="5.1" width="5" height="13.8" rx="1.6" stroke="none" />
@@ -32,6 +38,17 @@
         </svg>
       </button>
       <!-- 以后要加搜索等图标，直接在这里追加 .tool-btn 即可 -->
+      <div class="windows-window-controls" aria-label="窗口控制">
+        <button class="window-control" id="titlebarMinimize" type="button" aria-label="最小化窗口" title="最小化">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5h8" /></svg>
+        </button>
+        <button class="window-control" id="titlebarMaximize" type="button" aria-label="最大化窗口" title="最大化">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" /></svg>
+        </button>
+        <button class="window-control window-control-close" id="titlebarClose" type="button" aria-label="关闭窗口" title="关闭">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 2.5 7 7m0-7-7 7" /></svg>
+        </button>
+      </div>
     </div>
     <header class="app-header" data-tauri-drag-region>
       <nav class="primary-nav" aria-label="主菜单">
@@ -121,14 +138,6 @@
       </section>
 
       <section class="view themes-view" data-view-panel="themes" hidden>
-        <div class="library-head">
-          <div>
-            <div class="eyebrow">动画库</div>
-            <h1 id="themeHeading">动画效果 · 11 款</h1>
-            <p>预览图按需加载；滚动时仅渲染可见主题。</p>
-          </div>
-          <span class="library-meta">点击预览，全屏播放 5→1</span>
-        </div>
         <div class="theme-viewport" id="themeViewport" tabindex="0" aria-label="动画主题列表">
           <div class="theme-virtual-canvas" id="themeVirtualCanvas"></div>
         </div>
