@@ -178,68 +178,91 @@
 
     <div id="taskModal" class="modal" hidden>
       <div class="modal-backdrop" data-tauri-drag-region></div>
-      <form id="taskForm" class="modal-card" novalidate role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+      <form id="taskForm" class="modal-card wizard" novalidate role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
         <div class="dialog-head" data-tauri-drag-region>
-          <h3 id="dialogTitle">新建任务</h3>
+          <div class="wizard-head-top">
+            <h3 id="dialogTitle">新建任务</h3>
+            <ol class="wizard-steps" id="wizardSteps" aria-label="步骤进度">
+              <li data-step="0" aria-current="step"><span class="wstep-dot">1</span><span class="wstep-label">时间</span></li>
+              <li data-step="1"><span class="wstep-dot">2</span><span class="wstep-label">动画</span></li>
+              <li data-step="2"><span class="wstep-dot">3</span><span class="wstep-label">名称</span></li>
+            </ol>
+          </div>
+          <p class="wizard-sub" id="wizardSub">选择任务类型与触发时间</p>
         </div>
 
-        <label class="field">
-          <span>名称</span>
-          <input id="f_name" type="text" maxlength="40" placeholder="例如：起飞倒计时" required />
-        </label>
+        <div class="wizard-viewport">
+          <div class="wizard-track" id="wizardTrack">
+            <!-- Step 1: type + time/date -->
+            <section class="wizard-slide" data-slide="0">
+              <div class="field">
+                <span>类型</span>
+                <div class="seg" id="typeSeg" role="group" aria-label="任务类型">
+                  <button type="button" data-type="once" aria-pressed="true">一次性</button>
+                  <button type="button" data-type="repeat" aria-pressed="false">重复</button>
+                  <button type="button" data-type="interval" aria-pressed="false">循环</button>
+                </div>
+              </div>
 
-        <div class="field">
-          <span>类型</span>
-          <div class="seg" id="typeSeg" role="group" aria-label="任务类型">
-            <button type="button" data-type="once" aria-pressed="true">一次性</button>
-            <button type="button" data-type="repeat" aria-pressed="false">重复</button>
-            <button type="button" data-type="interval" aria-pressed="false">循环</button>
+              <div class="field" id="targetRow">
+                <div class="field-head">
+                  <span>目标时间（北京时间）</span>
+                  <div class="seg small" id="targetModeSeg" role="group" aria-label="目标时间类型">
+                    <button type="button" data-target-mode="time" aria-pressed="true">时间</button>
+                    <button type="button" data-target-mode="date" aria-pressed="false">日期</button>
+                  </div>
+                </div>
+                <input id="f_time" type="time" step="1" />
+                <input id="f_datetime" type="datetime-local" step="1" hidden />
+                <p class="field-hint" id="timeHint">将在下一个该时刻触发（今天已过则顺延至明天）。</p>
+              </div>
+
+              <div class="field" id="weekdayRow" hidden>
+                <span>重复（周一～周日）</span>
+                <div class="weekdays" id="weekdays"></div>
+              </div>
+
+              <div class="field" id="intervalRow" hidden>
+                <span>间隔</span>
+                <div class="interval-input">
+                  <span class="interval-prefix">每</span>
+                  <input id="f_intervalValue" type="number" min="1" step="1" value="30" />
+                  <select id="f_intervalUnit">
+                    <option value="second">秒</option>
+                    <option value="minute" selected>分钟</option>
+                    <option value="hour">小时</option>
+                    <option value="day">天</option>
+                  </select>
+                  <span class="interval-suffix">执行一次</span>
+                </div>
+              </div>
+            </section>
+
+            <!-- Step 2: animation effect grid -->
+            <section class="wizard-slide" data-slide="1">
+              <div class="theme-picker" id="themePicker" role="radiogroup" aria-label="选择动画效果"></div>
+            </section>
+
+            <!-- Step 3: optional name -->
+            <section class="wizard-slide" data-slide="2">
+              <label class="field">
+                <span>任务名称（选填）</span>
+                <input id="f_name" type="text" maxlength="40" placeholder="不填将自动命名" />
+              </label>
+              <div class="wizard-summary" id="wizardSummary"></div>
+            </section>
           </div>
         </div>
-
-        <div class="field" id="targetRow">
-          <div class="field-head">
-            <span>目标时间（北京时间）</span>
-            <div class="seg small" id="targetModeSeg" role="group" aria-label="目标时间类型">
-              <button type="button" data-target-mode="time" aria-pressed="true">时间</button>
-              <button type="button" data-target-mode="date" aria-pressed="false">日期</button>
-            </div>
-          </div>
-          <input id="f_time" type="time" step="1" />
-          <input id="f_datetime" type="datetime-local" step="1" hidden />
-          <p class="field-hint" id="timeHint">将在下一个该时刻触发（今天已过则顺延至明天）。</p>
-        </div>
-
-        <div class="field" id="weekdayRow" hidden>
-          <span>重复（周一～周日）</span>
-          <div class="weekdays" id="weekdays"></div>
-        </div>
-
-        <div class="field" id="intervalRow" hidden>
-          <span>间隔</span>
-          <div class="interval-input">
-            <span class="interval-prefix">每</span>
-            <input id="f_intervalValue" type="number" min="1" step="1" value="30" />
-            <select id="f_intervalUnit">
-              <option value="second">秒</option>
-              <option value="minute" selected>分钟</option>
-              <option value="hour">小时</option>
-              <option value="day">天</option>
-            </select>
-            <span class="interval-suffix">执行一次</span>
-          </div>
-        </div>
-
-        <label class="field">
-          <span>动画效果</span>
-          <select id="f_theme"></select>
-        </label>
 
         <p class="dialog-error" id="dialogError" role="alert" hidden></p>
 
-        <div class="dialog-actions">
+        <div class="dialog-actions wizard-actions">
           <button type="button" class="btn" id="cancelDialog">取消</button>
-          <button type="button" class="btn primary" id="saveTask">保存</button>
+          <div class="wizard-nav">
+            <button type="button" class="btn" id="wizardBack" hidden>上一步</button>
+            <button type="button" class="btn primary" id="wizardNext">下一步</button>
+            <button type="button" class="btn primary" id="saveTask" hidden>保存</button>
+          </div>
         </div>
       </form>
     </div>

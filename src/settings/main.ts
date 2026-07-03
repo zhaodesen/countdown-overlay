@@ -71,7 +71,7 @@ const dialogTitle = document.getElementById("dialogTitle") as HTMLElement;
 const fName = document.getElementById("f_name") as HTMLInputElement;
 const fTime = document.getElementById("f_time") as HTMLInputElement;
 const fDateTime = document.getElementById("f_datetime") as HTMLInputElement;
-const fTheme = document.getElementById("f_theme") as HTMLSelectElement;
+const themePickerEl = document.getElementById("themePicker") as HTMLElement;
 const fIntervalValue = document.getElementById("f_intervalValue") as HTMLInputElement;
 const fIntervalUnit = document.getElementById("f_intervalUnit") as HTMLSelectElement;
 const typeSegEl = document.getElementById("typeSeg") as HTMLElement;
@@ -82,6 +82,13 @@ const weekdayRow = document.getElementById("weekdayRow") as HTMLElement;
 const weekdaysEl = document.getElementById("weekdays") as HTMLElement;
 const intervalRow = document.getElementById("intervalRow") as HTMLElement;
 const dialogErrorEl = document.getElementById("dialogError") as HTMLElement;
+const wizardTrackEl = document.getElementById("wizardTrack") as HTMLElement;
+const wizardStepsEl = document.getElementById("wizardSteps") as HTMLElement;
+const wizardSubEl = document.getElementById("wizardSub") as HTMLElement;
+const wizardSummaryEl = document.getElementById("wizardSummary") as HTMLElement;
+const wizardBackBtn = document.getElementById("wizardBack") as HTMLButtonElement;
+const wizardNextBtn = document.getElementById("wizardNext") as HTMLButtonElement;
+const saveTaskBtn = document.getElementById("saveTask") as HTMLButtonElement;
 
 /* ---------------- Status toast ---------------- */
 let statusTimer = 0;
@@ -297,6 +304,7 @@ const VIRTUAL_GAP = 16;
 const VIRTUAL_ROW_HEIGHT = 306;
 let virtualFrame = 0;
 let virtualSignature = "";
+const virtualCards = new Map<string, HTMLElement>();
 
 function virtualColumnCount(width: number): number {
   if (width >= 1120) return 3;
@@ -304,13 +312,17 @@ function virtualColumnCount(width: number): number {
   return 1;
 }
 
+function positionCard(card: HTMLElement, width: number, left: number, top: number): void {
+  card.style.width = `${width}px`;
+  card.style.left = `${left}px`;
+  card.style.top = `${top}px`;
+}
+
 function themeCard(theme: ThemeMeta, width: number, left: number, top: number): HTMLElement {
   const card = document.createElement("article");
   card.className = "theme-card";
   card.dataset.themeId = theme.id;
-  card.style.width = `${width}px`;
-  card.style.left = `${left}px`;
-  card.style.top = `${top}px`;
+  positionCard(card, width, left, top);
   card.innerHTML = `
     <div class="theme-media">
       <img src="${theme.preview}" alt="${theme.name}倒计时动画预览" loading="lazy" decoding="async" />
@@ -350,20 +362,35 @@ function renderVirtualThemes() {
   if (signature === virtualSignature) return;
   virtualSignature = signature;
 
-  const fragment = document.createDocumentFragment();
-  for (let index = startRow * columns; index < Math.min(THEME_META.length, endRow * columns); index++) {
+  // Reconcile: reuse existing card nodes (keyed by theme id) instead of
+  // recreating them. Rebuilding every frame re-instantiates each <img>, which
+  // resets its fade-in and makes the list/images flicker while scrolling.
+  const needed = new Set<string>();
+  const lastIndex = Math.min(THEME_META.length, endRow * columns);
+  for (let index = startRow * columns; index < lastIndex; index++) {
+    const theme = THEME_META[index];
     const row = Math.floor(index / columns);
     const column = index % columns;
-    fragment.appendChild(
-      themeCard(
-        THEME_META[index],
-        cardWidth,
-        column * (cardWidth + VIRTUAL_GAP),
-        row * VIRTUAL_ROW_HEIGHT
-      )
-    );
+    const left = column * (cardWidth + VIRTUAL_GAP);
+    const top = row * VIRTUAL_ROW_HEIGHT;
+    needed.add(theme.id);
+
+    const existing = virtualCards.get(theme.id);
+    if (existing) {
+      positionCard(existing, cardWidth, left, top);
+    } else {
+      const card = themeCard(theme, cardWidth, left, top);
+      virtualCards.set(theme.id, card);
+      themeCanvasEl.appendChild(card);
+    }
   }
-  themeCanvasEl.replaceChildren(fragment);
+
+  for (const [id, card] of virtualCards) {
+    if (!needed.has(id)) {
+      card.remove();
+      virtualCards.delete(id);
+    }
+  }
 }
 
 function scheduleVirtualRender() {
@@ -385,16 +412,68 @@ themeCanvasEl.addEventListener("click", (event) => {
   toast(`预览：${themeName(themeId)}`);
 });
 
-/* populate theme <select> in the dialog */
-function fillThemeSelect() {
-  fTheme.replaceChildren();
+/* ---------------- Animation-effect grid picker (dialog step 2) ---------------- */
+let selectedThemeId = THEME_META[0].id;
+
+function buildThemePicker() {
+  themePickerEl.replaceChildren();
   for (const theme of THEME_META) {
-    const option = document.createElement("option");
-    option.value = theme.id;
-    option.textContent = `${theme.name} · ${theme.category}`;
-    fTheme.appendChild(option);
+    const card = document.createElement("div");
+    card.className = "pick-card";
+    card.dataset.themeId = theme.id;
+    card.setAttribute("role", "radio");
+    card.tabIndex = 0;
+    card.innerHTML = `
+      <div class="pick-media">
+        <img src="${theme.preview}" alt="${theme.name}预览" loading="lazy" decoding="async" />
+        <span class="pick-check" aria-hidden="true">✓</span>
+        <button type="button" class="pick-preview" data-preview="${theme.id}">预览</button>
+      </div>
+      <div class="pick-body">
+        <div class="pick-name">${theme.name}</div>
+        <div class="pick-cat">${theme.category}</div>
+      </div>`;
+    const image = card.querySelector("img") as HTMLImageElement;
+    const reveal = () => image.classList.add("loaded");
+    image.addEventListener("load", reveal, { once: true });
+    if (image.complete) reveal();
+    themePickerEl.appendChild(card);
   }
 }
+
+function syncThemePicker() {
+  themePickerEl.querySelectorAll<HTMLElement>(".pick-card").forEach((card) => {
+    card.setAttribute("aria-checked", String(card.dataset.themeId === selectedThemeId));
+  });
+}
+
+function selectTheme(id: string) {
+  selectedThemeId = id;
+  syncThemePicker();
+}
+
+themePickerEl.addEventListener("click", (event) => {
+  const target = event.target as HTMLElement;
+  const preview = target.closest<HTMLButtonElement>("[data-preview]");
+  if (preview) {
+    event.stopPropagation();
+    const id = preview.dataset.preview as string;
+    void openOverlay(id, true);
+    toast(`预览：${themeName(id)}`);
+    return;
+  }
+  const card = target.closest<HTMLElement>(".pick-card");
+  if (card?.dataset.themeId) selectTheme(card.dataset.themeId);
+});
+
+themePickerEl.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const card = (event.target as HTMLElement).closest<HTMLElement>(".pick-card");
+  if (card?.dataset.themeId) {
+    event.preventDefault();
+    selectTheme(card.dataset.themeId);
+  }
+});
 
 /* ---------------- Task list ---------------- */
 const WD_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
@@ -591,7 +670,7 @@ function openDialog(id?: string) {
     fIntervalValue.value = String(task.intervalValue ?? 30);
     fIntervalUnit.value = task.intervalUnit ?? "minute";
     selectedWeekdays = new Set(task.weekdays);
-    fTheme.value = task.themeId;
+    selectedThemeId = task.themeId;
     currentTargetMode = task.type === "once" ? task.timeMode ?? "date" : "time";
     setType(task.type);
   } else {
@@ -602,13 +681,15 @@ function openDialog(id?: string) {
     fIntervalValue.value = "30";
     fIntervalUnit.value = "minute";
     selectedWeekdays = new Set();
-    fTheme.value = THEME_META[0].id;
+    selectedThemeId = THEME_META[0].id;
     currentTargetMode = "time";
     setType("once");
   }
   setTargetMode(currentTargetMode);
   renderWeekdays();
+  syncThemePicker();
   clearDialogError();
+  goToStep(0, true);
   openModal();
 }
 
@@ -616,7 +697,7 @@ function openModal() {
   modal.hidden = false;
   // next frame so the CSS transition runs
   requestAnimationFrame(() => modal.classList.add("open"));
-  requestAnimationFrame(() => fName.focus());
+  requestAnimationFrame(() => wizardNextBtn.focus());
 }
 
 function closeModal() {
@@ -634,67 +715,83 @@ function clearDialogError() {
   dialogErrorEl.hidden = true;
 }
 
-function submitTask() {
-  clearDialogError();
-  const type = currentType;
+interface TimingResult {
+  wall: { year: number; month: number; day: number; hour: number; minute: number; second: number };
+  timeMode?: TimeMode;
+  intervalValue?: number;
+  intervalUnit?: IntervalUnit;
+  intervalAnchor?: number;
+}
 
-  let wall: { year: number; month: number; day: number; hour: number; minute: number; second: number };
-  let timeMode: TimeMode | undefined;
-  let intervalValue: number | undefined;
-  let intervalUnit: IntervalUnit | undefined;
-  let intervalAnchor: number | undefined;
+/** Validate the step-1 timing inputs. Shows a dialog error and returns null on failure. */
+function computeTiming(): TimingResult | null {
+  const type = currentType;
 
   if (type === "interval") {
     const value = Math.floor(Number(fIntervalValue.value));
     if (!Number.isFinite(value) || value < 1) {
       showDialogError("请填写有效的循环间隔");
-      return;
+      return null;
     }
-    intervalValue = value;
-    intervalUnit = fIntervalUnit.value as IntervalUnit;
-    intervalAnchor = Date.now();
-    wall = beijingNow();
-  } else if (type === "repeat") {
+    return {
+      wall: beijingNow(),
+      intervalValue: value,
+      intervalUnit: fIntervalUnit.value as IntervalUnit,
+      intervalAnchor: Date.now(),
+    };
+  }
+
+  if (type === "repeat") {
     const tod = parseTimeInput(fTime.value);
     if (!tod) {
       showDialogError("请填写有效的时间");
-      return;
+      return null;
     }
     if (selectedWeekdays.size === 0) {
       showDialogError("重复任务请至少选择一个星期几");
-      return;
+      return null;
     }
     const base = beijingNow();
-    wall = { year: base.year, month: base.month, day: base.day, ...tod };
-  } else if (currentTargetMode === "time") {
+    return { wall: { year: base.year, month: base.month, day: base.day, ...tod } };
+  }
+
+  if (currentTargetMode === "time") {
     const tod = parseTimeInput(fTime.value);
     if (!tod) {
       showDialogError("请填写有效的时间");
-      return;
+      return null;
     }
-    wall = nextOccurrence(tod.hour, tod.minute, tod.second);
-    timeMode = "time";
-  } else {
-    const parsed = parseDatetimeLocal(fDateTime.value);
-    if (!parsed) {
-      showDialogError("请填写有效的目标时间");
-      return;
-    }
-    const epoch = beijingWallToEpoch(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second
-    );
-    if (epoch < Date.now()) {
-      showDialogError("目标时间不能早于当前时间");
-      return;
-    }
-    wall = parsed;
-    timeMode = "date";
+    return { wall: nextOccurrence(tod.hour, tod.minute, tod.second), timeMode: "time" };
   }
+
+  const parsed = parseDatetimeLocal(fDateTime.value);
+  if (!parsed) {
+    showDialogError("请填写有效的目标时间");
+    return null;
+  }
+  const epoch = beijingWallToEpoch(
+    parsed.year,
+    parsed.month,
+    parsed.day,
+    parsed.hour,
+    parsed.minute,
+    parsed.second
+  );
+  if (epoch < Date.now()) {
+    showDialogError("目标时间不能早于当前时间");
+    return null;
+  }
+  return { wall: parsed, timeMode: "date" };
+}
+
+function submitTask() {
+  clearDialogError();
+  const timing = computeTiming();
+  if (!timing) {
+    goToStep(0); // send the user back to fix the timing
+    return;
+  }
+  const { wall } = timing;
 
   const task: Task = {
     id: editingId ?? uid(),
@@ -705,13 +802,13 @@ function submitTask() {
     hour: wall.hour,
     minute: wall.minute,
     second: wall.second,
-    type,
+    type: currentType,
     weekdays: [...selectedWeekdays].sort(),
-    timeMode,
-    intervalValue,
-    intervalUnit,
-    intervalAnchor,
-    themeId: fTheme.value,
+    timeMode: timing.timeMode,
+    intervalValue: timing.intervalValue,
+    intervalUnit: timing.intervalUnit,
+    intervalAnchor: timing.intervalAnchor,
+    themeId: selectedThemeId,
     enabled: true,
     lastFiredFor: undefined,
   };
@@ -724,14 +821,82 @@ function submitTask() {
   toast(editingId ? "已保存修改" : "已创建任务");
 }
 
+/* ---------------- Wizard step navigation ---------------- */
+const WIZARD_SUBS = [
+  "选择任务类型与触发时间",
+  "挑选一个倒计时动画效果",
+  "给任务起个名字（可跳过）",
+];
+const WIZARD_LAST = 2;
+let currentStep = 0;
+
+function summarizeTiming(): string {
+  if (currentType === "interval") {
+    const unit = UNIT_LABELS[fIntervalUnit.value as IntervalUnit];
+    return `每 ${fIntervalValue.value} ${unit} 执行一次`;
+  }
+  if (currentType === "repeat") {
+    const days = WD_ORDER.filter((day) => selectedWeekdays.has(day))
+      .map((day) => "周" + WD_LABELS[day])
+      .join("、");
+    return `${days || "未选日"} ${fTime.value}`;
+  }
+  return currentTargetMode === "time" ? `每天 ${fTime.value}` : fDateTime.value.replace("T", " ");
+}
+
+function refreshSummary() {
+  wizardSummaryEl.innerHTML = `
+    <div>类型：<strong>${TYPE_LABELS[currentType]}</strong></div>
+    <div>触发：<strong>${escapeHtml(summarizeTiming())}</strong></div>
+    <div>动画：<strong>${escapeHtml(themeName(selectedThemeId))}</strong></div>`;
+}
+
+function goToStep(step: number, immediate = false) {
+  currentStep = Math.max(0, Math.min(WIZARD_LAST, step));
+  clearDialogError();
+
+  const track = wizardTrackEl;
+  if (immediate) {
+    const prev = track.style.transition;
+    track.style.transition = "none";
+    track.style.transform = `translateX(-${currentStep * 100}%)`;
+    // force reflow so the next transition re-enables cleanly
+    void track.offsetWidth;
+    track.style.transition = prev;
+  } else {
+    track.style.transform = `translateX(-${currentStep * 100}%)`;
+  }
+
+  wizardStepsEl.querySelectorAll<HTMLElement>("li").forEach((li, index) => {
+    li.classList.toggle("done", index < currentStep);
+    if (index === currentStep) li.setAttribute("aria-current", "step");
+    else li.removeAttribute("aria-current");
+  });
+
+  wizardSubEl.textContent = WIZARD_SUBS[currentStep];
+  wizardBackBtn.hidden = currentStep === 0;
+  const onLast = currentStep === WIZARD_LAST;
+  wizardNextBtn.hidden = onLast;
+  saveTaskBtn.hidden = !onLast;
+  if (onLast) refreshSummary();
+}
+
+function nextStep() {
+  if (currentStep === 0 && !computeTiming()) return; // block until timing valid
+  goToStep(currentStep + 1);
+}
+
 document.getElementById("addTask")!.addEventListener("click", () => openDialog());
 document.getElementById("cancelDialog")!.addEventListener("click", () => closeModal());
-document.getElementById("saveTask")!.addEventListener("click", () => submitTask());
+wizardNextBtn.addEventListener("click", () => nextStep());
+wizardBackBtn.addEventListener("click", () => goToStep(currentStep - 1));
+saveTaskBtn.addEventListener("click", () => submitTask());
 
-// Enter saves, Escape closes — no reliance on native <dialog> behaviour.
+// Enter advances (or saves on the last step); Escape closes.
 form.addEventListener("submit", (event) => {
   event.preventDefault();
-  submitTask();
+  if (currentStep === WIZARD_LAST) submitTask();
+  else nextStep();
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !modal.hidden) closeModal();
@@ -816,7 +981,7 @@ function schedulerTick() {
 if (!isTauri) setInterval(schedulerTick, 500);
 
 /* ---------------- Init ---------------- */
-fillThemeSelect();
+buildThemePicker();
 renderTasks();
 showView(viewFromHash(), false);
 
