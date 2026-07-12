@@ -147,34 +147,39 @@
         <div class="settings-head">
           <div class="eyebrow">偏好设置</div>
           <h1>设置</h1>
-          <p>外观和声音设置会自动保存在本机。</p>
+          <p>设置会自动保存在本机。</p>
         </div>
 
         <div class="settings-list">
           <section class="setting-row">
             <div>
-              <h2>界面主题</h2>
-              <p>在深色和浅色界面之间切换。</p>
+              <h2>倒计时数字显示</h2>
+              <p>控制倒计时播放时是否显示数字。</p>
             </div>
-            <div class="mode-switch large" role="group" aria-label="设置界面主题">
-              <button type="button" data-theme-choice="dark" aria-pressed="true">深色</button>
-              <button type="button" data-theme-choice="light" aria-pressed="false">浅色</button>
-            </div>
+            <label class="setting-switch">
+              <input type="checkbox" id="settingsDigitsToggle" />
+              <span>显示数字</span>
+            </label>
           </section>
 
           <section class="setting-row">
             <div>
-              <h2>倒计时音效</h2>
-              <p>控制预览与定时触发时的提示音。</p>
+              <h2>动画时长</h2>
+              <p>倒计时动画播放的秒数（1-60），会提前相应秒数弹出。</p>
             </div>
-            <label class="setting-switch">
-              <input type="checkbox" id="settingsSoundToggle" />
-              <span>启用音效</span>
-            </label>
+            <div class="interval-input">
+              <input id="settingsDurationInput" type="number" min="1" max="60" step="1" value="5" />
+              <span>秒</span>
+            </div>
           </section>
         </div>
       </section>
     </main>
+
+    <!-- Preview ball mode: shown while the window is shrunk to 50x50. -->
+    <div id="ballOverlay" data-tauri-drag-region aria-hidden="true">
+      <img src="/bang-logo.svg" alt="" draggable="false" />
+    </div>
 
     <div id="taskModal" class="modal" hidden>
       <div class="modal-backdrop" data-tauri-drag-region></div>

@@ -223,6 +223,35 @@ export const THEMES: Record<string, Theme> = {
     },
   },
 
+  lowhp: {
+    id: "lowhp",
+    bodyClass: "t-lowhp",
+    bg: { kind: "none" },
+    banner: "⚠ CRITICAL CONDITION ⚠",
+    hueFor: () => 0,
+    burst: (i) => ({
+      count: 90 + i * 18,
+      speed: 420 + i * 60,
+      shape: "circle",
+      gravity: 90,
+      color: pick(["#ff1a1a", "#ff5555", "#a80000", "#ff8a8a"]),
+      shockColor: "#ff2020",
+    }),
+    entrance: () => ENTRANCE.impact(),
+    sound: {
+      digit: (s) => {
+        // Heartbeat "lub-dub" + faint monitor beep.
+        s.tone({ freq: 52, type: "sine", dur: 0.16, gain: 0.34, glideTo: 30 });
+        s.tone({ freq: 44, type: "sine", dur: 0.14, gain: 0.26, glideTo: 26, delay: 0.2 });
+        s.tone({ freq: 1180, type: "sine", dur: 0.06, gain: 0.05 });
+      },
+      finish: (s) => {
+        s.arp([880, 660, 440], 0.09, { type: "square", dur: 0.14, gain: 0.12 });
+        s.tone({ freq: 60, type: "sawtooth", dur: 0.8, gain: 0.26, glideTo: 32, delay: 0.1 });
+      },
+    },
+  },
+
   frost: {
     id: "frost",
     bodyClass: "t-frost",

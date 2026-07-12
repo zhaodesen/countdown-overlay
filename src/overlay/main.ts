@@ -10,7 +10,7 @@ import { buildCountdown } from "./engine";
 import { getTheme } from "./themes";
 import { SoundEngine } from "./sound";
 import { readOverlayConfig } from "../shared/storage";
-import { EVENT_FINISHED } from "../shared/types";
+import { clampCountdownSeconds, EVENT_FINISHED } from "../shared/types";
 
 const numberEl = document.getElementById("number") as HTMLElement;
 const ghostEls = [
@@ -28,13 +28,23 @@ const fluidCanvas = document.getElementById("fluid") as HTMLCanvasElement;
 
 const params = new URLSearchParams(window.location.search);
 const queryTheme = params.get("theme");
+const queryDigits = params.get("digits");
+const querySecs = params.get("secs");
 const cfg = queryTheme
   ? {
       themeId: queryTheme,
       soundOn: params.get("sound") !== "0",
       preview: params.get("preview") === "1",
+      // Older native binaries omit these params — fall back to the config
+      // written to localStorage right before the overlay opened.
+      showDigits: queryDigits !== null ? queryDigits !== "0" : readOverlayConfig().showDigits,
+      countdownSeconds:
+        querySecs !== null
+          ? clampCountdownSeconds(querySecs)
+          : clampCountdownSeconds(readOverlayConfig().countdownSeconds),
     }
   : readOverlayConfig();
+cfg.countdownSeconds = clampCountdownSeconds(cfg.countdownSeconds);
 const theme = getTheme(cfg.themeId);
 
 // In the browser (vite dev preview) there is no Tauri window; guard it.
@@ -43,6 +53,11 @@ const isTauri = "__TAURI_INTERNALS__" in window;
 // Apply theme look.
 document.body.classList.add(theme.bodyClass);
 if (theme.banner) bannerEl.textContent = theme.banner;
+
+// Digits disabled: hide the whole center stage (number, ghosts, glow,
+// shockwave). Background/particles/smoke/sound still run. The inline head
+// script already set this class pre-paint; keep it in sync with cfg here.
+document.documentElement.classList.toggle("no-digits", !cfg.showDigits);
 
 const field = new ParticleField(fxCanvas);
 const background = createBackground(bgCanvas, theme.bg);
@@ -128,6 +143,8 @@ async function run() {
     field,
     sound,
     theme,
+    showDigits: cfg.showDigits,
+    seconds: cfg.countdownSeconds,
     onComplete: () => void finish(),
     onDigit: (i) => {
       if (!smoke) return;
@@ -141,7 +158,7 @@ async function run() {
   // Safety net: force-close if anything stalls.
   safetyTimer = window.setTimeout(() => {
     if (timeline && timeline.progress() < 1) void finish();
-  }, 12_000);
+  }, (cfg.countdownSeconds + 7) * 1000);
 }
 
 void run();

@@ -44,14 +44,22 @@ export function writeOverlayConfig(cfg: OverlayConfig): void {
   localStorage.setItem(LS_OVERLAY_CONFIG, JSON.stringify(cfg));
 }
 
+const DEFAULT_OVERLAY_CONFIG: OverlayConfig = {
+  themeId: "cyberpunk",
+  soundOn: true,
+  preview: false,
+  showDigits: true,
+  countdownSeconds: 5,
+};
+
 export function readOverlayConfig(): OverlayConfig {
   try {
     const raw = localStorage.getItem(LS_OVERLAY_CONFIG);
-    if (raw) return JSON.parse(raw) as OverlayConfig;
+    if (raw) return { ...DEFAULT_OVERLAY_CONFIG, ...(JSON.parse(raw) as Partial<OverlayConfig>) };
   } catch {
     /* ignore */
   }
-  return { themeId: "cyberpunk", soundOn: true, preview: false };
+  return { ...DEFAULT_OVERLAY_CONFIG };
 }
 
 export function uid(): string {

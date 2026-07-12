@@ -23,6 +23,18 @@ struct ScheduledTrigger {
     fire_at_ms: i64,
     theme_id: String,
     sound_on: bool,
+    #[serde(default = "default_show_digits")]
+    show_digits: bool,
+    #[serde(default = "default_countdown_secs")]
+    countdown_secs: u32,
+}
+
+fn default_show_digits() -> bool {
+    true
+}
+
+fn default_countdown_secs() -> u32 {
+    5
 }
 
 #[derive(Clone, Serialize)]
@@ -69,6 +81,8 @@ async fn show_overlay_window(
     theme_id: &str,
     sound_on: bool,
     preview: bool,
+    show_digits: bool,
+    countdown_secs: u32,
 ) -> Result<(), String> {
     if !theme_id
         .chars()
@@ -110,9 +124,11 @@ async fn show_overlay_window(
     let logical_h = size.height as f64 / scale;
 
     let overlay_url = format!(
-        "overlay.html?theme={theme_id}&sound={}&preview={}",
+        "overlay.html?theme={theme_id}&sound={}&preview={}&digits={}&secs={}",
         if sound_on { 1 } else { 0 },
-        if preview { 1 } else { 0 }
+        if preview { 1 } else { 0 },
+        if show_digits { 1 } else { 0 },
+        countdown_secs.clamp(1, 60)
     );
 
     let window =
@@ -150,8 +166,19 @@ async fn show_overlay(
     theme_id: String,
     sound_on: bool,
     preview: bool,
+    show_digits: bool,
+    countdown_secs: u32,
 ) -> Result<(), String> {
-    show_overlay_window(&app, state.inner(), &theme_id, sound_on, preview).await
+    show_overlay_window(
+        &app,
+        state.inner(),
+        &theme_id,
+        sound_on,
+        preview,
+        show_digits,
+        countdown_secs,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -208,6 +235,8 @@ async fn scheduler_loop(app: AppHandle) {
                 &trigger.theme_id,
                 trigger.sound_on,
                 false,
+                trigger.show_digits,
+                trigger.countdown_secs,
             )
             .await
             .is_ok();

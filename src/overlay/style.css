@@ -75,6 +75,13 @@ body {
   pointer-events: none;
 }
 
+/* Digits disabled in settings: hide the whole center stage (number, ghosts,
+   glow, shockwave). Set on <html> by the inline head script before first
+   paint, so the static "5" never flashes. !important beats GSAP inline styles. */
+.no-digits .stage {
+  display: none !important;
+}
+
 .number {
   --num-font: "Orbitron", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-family: var(--num-font);
@@ -268,6 +275,77 @@ body {
   --num-font: "Orbitron", "Segoe UI", sans-serif;
   color: #fff0c8;
   text-shadow: 0 0 20px #ff7b00, 0 0 48px #ff2e00, 0 -6px 30px #ffcf3a;
+}
+
+/* 红色警报 — low-HP full-bleed breathing vignette ("Crimson Respiration").
+   Design: edges deepest blood-red on ALL four sides, easing inward through
+   bright crimson to a nearly clear core. A static base keeps the frame fully
+   red even at the bottom of the breath; the ::before layer swells 55%→100%
+   with a sinusoidal ease (T = 3.2s); ::after murmurs a subordinate heartbeat. */
+.t-lowhp {
+  background: radial-gradient(
+    ellipse 120% 120% at 50% 50%,
+    rgba(40, 0, 0, 0) 14%,
+    rgba(74, 2, 2, 0.14) 28%,
+    rgba(150, 14, 14, 0.32) 46%,
+    rgba(168, 22, 22, 0.45) 62%,
+    rgba(128, 8, 8, 0.62) 78%,
+    rgba(74, 2, 2, 0.82) 92%,
+    rgba(40, 0, 0, 0.92) 100%
+  );
+}
+.t-lowhp::before,
+.t-lowhp::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+/* No top scanline/beam/banner for this theme — the breath IS the whole frame. */
+.t-lowhp .top-fx {
+  display: none;
+}
+/* Breathing layer — slow sinusoidal inhale/exhale over the ENTIRE screen:
+   a uniform red wash (reaches the very center) plus the edge vignette swell. */
+.t-lowhp::before {
+  background:
+    radial-gradient(
+      ellipse 120% 120% at 50% 50%,
+      transparent 18%,
+      rgba(200, 24, 24, 0.1) 36%,
+      rgba(224, 36, 36, 0.26) 56%,
+      rgba(190, 16, 16, 0.42) 74%,
+      rgba(130, 2, 2, 0.6) 90%,
+      rgba(90, 0, 0, 0.68) 100%
+    ),
+    linear-gradient(rgba(200, 20, 20, 0.14), rgba(200, 20, 20, 0.14));
+  animation: lowhp-breathe 1s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+}
+/* Heartbeat — felt more than seen, subordinate to the breath. */
+.t-lowhp::after {
+  background: radial-gradient(ellipse 115% 115% at 50% 50%, transparent 55%, rgba(255, 0, 0, 0.3) 100%);
+  animation: lowhp-heartbeat 1.6s ease-out infinite;
+}
+@keyframes lowhp-breathe {
+  0%, 100% { opacity: 0.12; }
+  50% { opacity: 1; }
+}
+@keyframes lowhp-heartbeat {
+  0%, 60%, 100% { opacity: 0; }
+  8% { opacity: 0.5; }
+  22% { opacity: 0.08; }
+  32% { opacity: 0.35; }
+  50% { opacity: 0; }
+}
+.t-lowhp .number {
+  --num-font: "Orbitron", "Segoe UI", sans-serif;
+  color: #ffe8e8;
+  text-shadow: 0 0 22px #ff2020, 0 0 60px #b30000, 0 0 130px #ff0000;
+}
+.t-lowhp .banner-text {
+  color: #ff9a9a;
+  letter-spacing: 6px;
 }
 
 /* 冰霜 — ice */

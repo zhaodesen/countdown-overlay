@@ -4,6 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Overlay</title>
+    <script>
+      // Runs before first paint: hide the center stage when digits are
+      // disabled, so the static "5" below never flashes on screen.
+      (function () {
+        try {
+          var digits = new URLSearchParams(location.search).get("digits");
+          var hide;
+          if (digits !== null) {
+            hide = digits === "0";
+          } else {
+            // No query param (e.g. older native binary): fall back to the
+            // config the settings window wrote just before opening us.
+            var cfg = JSON.parse(localStorage.getItem("co.overlay.config.v1") || "{}");
+            hide = cfg.showDigits === false;
+          }
+          if (hide) document.documentElement.classList.add("no-digits");
+        } catch (e) {
+          /* default: show digits */
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="/src/overlay/style.css" />
   </head>
   <body class="overlay-body">

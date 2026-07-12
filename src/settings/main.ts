@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { THEME_META, themeName, type ThemeMeta } from "../shared/themes-meta";
@@ -19,7 +20,9 @@ import {
   Task,
   TaskType,
   TimeMode,
-  TRIGGER_LEAD_SECONDS,
+  clampCountdownSeconds,
+  MAX_COUNTDOWN_SECONDS,
+  MIN_COUNTDOWN_SECONDS,
 } from "../shared/types";
 import {
   beijingNow,
@@ -48,6 +51,7 @@ if (isTauri && document.documentElement.classList.contains("os-win")) {
 
 let tasks: Task[] = loadTasks();
 let settings: AppSettings = loadSettings();
+settings.countdownSeconds = clampCountdownSeconds(settings.countdownSeconds);
 
 type ViewName = "home" | "themes" | "settings";
 
@@ -55,7 +59,8 @@ type ViewName = "home" | "themes" | "settings";
 const clockTimeEl = document.getElementById("clockTime") as HTMLElement;
 const themeToggle = document.getElementById("themeToggle") as HTMLButtonElement;
 const soundToggle = document.getElementById("soundToggle") as HTMLButtonElement;
-const settingsSoundToggle = document.getElementById("settingsSoundToggle") as HTMLInputElement;
+const settingsDigitsToggle = document.getElementById("settingsDigitsToggle") as HTMLInputElement;
+const settingsDurationInput = document.getElementById("settingsDurationInput") as HTMLInputElement;
 const taskListEl = document.getElementById("taskList") as HTMLElement | null;
 const taskCountEl = document.getElementById("taskCount") as HTMLElement | null;
 const tasksHeadEl = document.getElementById("tasksHead") as HTMLElement | null;
@@ -217,9 +222,6 @@ function renderAppearance() {
   themeToggle.dataset.mode = settings.colorMode;
   themeToggle.setAttribute("aria-label", themeAction);
   themeToggle.title = themeAction;
-  document.querySelectorAll<HTMLButtonElement>("[data-theme-choice]").forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.themeChoice === settings.colorMode));
-  });
 }
 
 function syncNativeTheme(mode: AppSettings["colorMode"] = settings.colorMode) {
@@ -253,9 +255,6 @@ function setColorMode(mode: AppSettings["colorMode"]) {
   toast(mode === "dark" ? "已切换为深色主题" : "已切换为浅色主题");
 }
 
-document.querySelectorAll<HTMLButtonElement>("[data-theme-choice]").forEach((button) => {
-  button.addEventListener("click", () => setColorMode(button.dataset.themeChoice as AppSettings["colorMode"]));
-});
 themeToggle.addEventListener("click", () => setColorMode(settings.colorMode === "dark" ? "light" : "dark"));
 
 function renderSound() {
@@ -264,7 +263,6 @@ function renderSound() {
   soundToggle.setAttribute("aria-pressed", String(settings.soundOn));
   soundToggle.setAttribute("aria-label", soundAction);
   soundToggle.title = soundAction;
-  settingsSoundToggle.checked = settings.soundOn;
 }
 
 function setSound(enabled: boolean) {
@@ -275,27 +273,181 @@ function setSound(enabled: boolean) {
 }
 
 soundToggle.addEventListener("click", () => setSound(!settings.soundOn));
-settingsSoundToggle.addEventListener("change", () => setSound(settingsSoundToggle.checked));
+
+function renderDigits() {
+  settingsDigitsToggle.checked = settings.showDigits;
+}
+
+function setShowDigits(enabled: boolean) {
+  settings.showDigits = enabled;
+  saveSettings(settings);
+  renderDigits();
+  if (syncNativeScheduler()) renderTasks();
+  toast(enabled ? "倒计时将显示数字" : "倒计时将隐藏数字");
+}
+
+settingsDigitsToggle.addEventListener("change", () => setShowDigits(settingsDigitsToggle.checked));
+
+function renderDuration() {
+  settingsDurationInput.value = String(settings.countdownSeconds);
+}
+
+function setDuration(value: unknown) {
+  const seconds = clampCountdownSeconds(value);
+  const changed = seconds !== settings.countdownSeconds;
+  settings.countdownSeconds = seconds;
+  saveSettings(settings);
+  renderDuration();
+  if (changed) {
+    if (syncNativeScheduler()) renderTasks();
+    toast(`动画时长已设为 ${seconds} 秒`);
+  }
+}
+
+settingsDurationInput.min = String(MIN_COUNTDOWN_SECONDS);
+settingsDurationInput.max = String(MAX_COUNTDOWN_SECONDS);
+settingsDurationInput.addEventListener("change", () => setDuration(settingsDurationInput.value));
 
 renderAppearance();
 syncNativeTheme();
 renderSound();
+renderDigits();
+renderDuration();
+
+/* ---------------- Preview ball mode ----------------
+   While a preview plays, the main window shrinks to a 50x50 "ball" showing
+   just the logo; when the overlay finishes it slowly grows back. */
+const BALL_SIZE = 50;
+// Must match the main window's minWidth/minHeight in tauri.conf.json.
+const WINDOW_MIN_W = 760;
+const WINDOW_MIN_H = 560;
+
+interface WinRect {
+  w: number;
+  h: number;
+  x: number;
+  y: number;
+}
+
+let ballRestoreRect: WinRect | null = null;
+let ballBusy = false;
+let ballSafetyTimer = 0;
+
+const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+async function currentWindowRect(): Promise<WinRect> {
+  const win = getCurrentWindow();
+  const scale = await win.scaleFactor();
+  const size = (await win.innerSize()).toLogical(scale);
+  const pos = (await win.outerPosition()).toLogical(scale);
+  return { w: size.width, h: size.height, x: pos.x, y: pos.y };
+}
+
+function animateWindowRect(from: WinRect, to: WinRect, duration: number): Promise<void> {
+  const win = getCurrentWindow();
+  return new Promise((resolve) => {
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const e = easeInOut(t);
+      void win.setSize(
+        new LogicalSize(
+          Math.round(from.w + (to.w - from.w) * e),
+          Math.round(from.h + (to.h - from.h) * e)
+        )
+      );
+      void win.setPosition(
+        new LogicalPosition(
+          Math.round(from.x + (to.x - from.x) * e),
+          Math.round(from.y + (to.y - from.y) * e)
+        )
+      );
+      if (t < 1) requestAnimationFrame(step);
+      else resolve();
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+async function shrinkToBall(): Promise<void> {
+  if (!isTauri || ballRestoreRect || ballBusy) return;
+  ballBusy = true;
+  try {
+    const win = getCurrentWindow();
+    const rect = await currentWindowRect();
+    ballRestoreRect = rect;
+    document.documentElement.classList.add("ball-mode");
+    await win.setMinSize(new LogicalSize(BALL_SIZE, BALL_SIZE));
+    await win.setResizable(false);
+    await animateWindowRect(
+      rect,
+      {
+        w: BALL_SIZE,
+        h: BALL_SIZE,
+        x: Math.round(rect.x + (rect.w - BALL_SIZE) / 2),
+        y: Math.round(rect.y + (rect.h - BALL_SIZE) / 2),
+      },
+      280
+    );
+  } catch (error) {
+    console.warn("Unable to shrink window to ball:", error);
+  } finally {
+    ballBusy = false;
+  }
+  // Safety net: restore even if the overlay never reports back.
+  clearTimeout(ballSafetyTimer);
+  ballSafetyTimer = window.setTimeout(
+    () => void restoreFromBall(),
+    (settings.countdownSeconds + 12) * 1000
+  );
+}
+
+async function restoreFromBall(): Promise<void> {
+  if (!isTauri || !ballRestoreRect || ballBusy) return;
+  ballBusy = true;
+  clearTimeout(ballSafetyTimer);
+  const target = ballRestoreRect;
+  ballRestoreRect = null;
+  try {
+    const win = getCurrentWindow();
+    const from = await currentWindowRect(); // the ball may have been dragged
+    await animateWindowRect(from, target, 600); // 慢慢复原
+    await win.setResizable(true);
+    await win.setMinSize(new LogicalSize(WINDOW_MIN_W, WINDOW_MIN_H));
+    document.documentElement.classList.remove("ball-mode");
+  } catch (error) {
+    console.warn("Unable to restore window from ball:", error);
+    document.documentElement.classList.remove("ball-mode");
+  } finally {
+    ballBusy = false;
+  }
+}
 
 /* ---------------- Open overlay (preview / real) ---------------- */
 async function openOverlay(themeId: string, preview: boolean) {
-  writeOverlayConfig({ themeId, soundOn: settings.soundOn, preview });
+  writeOverlayConfig({
+    themeId,
+    soundOn: settings.soundOn,
+    preview,
+    showDigits: settings.showDigits,
+    countdownSeconds: settings.countdownSeconds,
+  });
   if (!isTauri) {
     window.open("/overlay.html", "_blank", "noopener");
     return;
   }
+  if (preview) void shrinkToBall();
   try {
     await invoke("show_overlay", {
       themeId,
       soundOn: settings.soundOn,
       preview,
+      showDigits: settings.showDigits,
+      countdownSecs: settings.countdownSeconds,
     });
   } catch (error) {
     toast(`无法打开 Overlay：${String(error)}`);
+    void restoreFromBall();
   }
 }
 
@@ -908,6 +1060,8 @@ interface NativeScheduleEntry {
   fireAtMs: number;
   themeId: string;
   soundOn: boolean;
+  showDigits: boolean;
+  countdownSecs: number;
 }
 
 function syncNativeScheduler(): boolean {
@@ -919,7 +1073,7 @@ function syncNativeScheduler(): boolean {
 
   for (const task of tasks) {
     if (!task.enabled) continue;
-    let fireAt = nextFireEpoch(task, TRIGGER_LEAD_SECONDS, now);
+    let fireAt = nextFireEpoch(task, settings.countdownSeconds, now);
     if (fireAt == null) continue;
 
     if (task.type === "once" && fireAt <= now) {
@@ -929,7 +1083,7 @@ function syncNativeScheduler(): boolean {
     }
 
     if (task.type === "repeat" && task.lastFiredFor === fireAt) {
-      fireAt = nextFireEpoch(task, TRIGGER_LEAD_SECONDS, fireAt + 1501);
+      fireAt = nextFireEpoch(task, settings.countdownSeconds, fireAt + 1501);
       if (fireAt == null) continue;
     }
 
@@ -938,6 +1092,8 @@ function syncNativeScheduler(): boolean {
       fireAtMs: fireAt,
       themeId: task.themeId,
       soundOn: settings.soundOn,
+      showDigits: settings.showDigits,
+      countdownSecs: settings.countdownSeconds,
     });
   }
 
@@ -958,7 +1114,7 @@ function schedulerTick() {
   let changed = false;
   for (const task of tasks) {
     if (!task.enabled) continue;
-    const fireAt = nextFireEpoch(task, TRIGGER_LEAD_SECONDS, checkedFrom);
+    const fireAt = nextFireEpoch(task, settings.countdownSeconds, checkedFrom);
     if (fireAt == null) continue;
     if (task.type === "once" && fireAt <= checkedFrom) {
       task.enabled = false;
@@ -986,7 +1142,10 @@ renderTasks();
 showView(viewFromHash(), false);
 
 if (isTauri) {
-  void listen(EVENT_FINISHED, () => toast("倒计时结束，已返回控制台"));
+  void listen(EVENT_FINISHED, () => {
+    void restoreFromBall();
+    toast("倒计时结束，已返回控制台");
+  });
   void listen<SchedulerFiredPayload>(EVENT_SCHEDULE_FIRED, ({ payload }) => {
     const task = tasks.find((item) => item.id === payload.taskId);
     if (!task) return;

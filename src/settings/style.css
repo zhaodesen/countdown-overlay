@@ -1750,3 +1750,37 @@ p {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* =====================================================================
+   Preview ball mode — window shrunk to 50x50, logo only
+   ===================================================================== */
+#ballOverlay {
+  display: none;
+}
+
+.ball-mode #ballOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.ball-mode #ballOverlay:active {
+  cursor: grabbing;
+}
+
+#ballOverlay img {
+  width: 32px;
+  height: 32px;
+  pointer-events: none;
+}
+
+/* Hide everything else so nothing peeks during the shrink animation. */
+.ball-mode body {
+  overflow: hidden;
+}

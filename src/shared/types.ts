@@ -1,10 +1,18 @@
 /** Shared constants/types between the settings window and the overlay window. */
 
-/** Number of seconds the overlay counts down (5 → 1). */
+/** Default number of seconds the overlay counts down (N → 1). */
 export const COUNTDOWN_SECONDS = 5;
 
-/** How many seconds before the target time the overlay should appear. */
-export const TRIGGER_LEAD_SECONDS = 5;
+/** Valid range for the configurable countdown duration. */
+export const MIN_COUNTDOWN_SECONDS = 1;
+export const MAX_COUNTDOWN_SECONDS = 60;
+
+/** Clamp an arbitrary value into a valid countdown duration. */
+export function clampCountdownSeconds(value: unknown): number {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n)) return COUNTDOWN_SECONDS;
+  return Math.min(MAX_COUNTDOWN_SECONDS, Math.max(MIN_COUNTDOWN_SECONDS, n));
+}
 
 /** Tauri event the overlay emits when its countdown is fully finished. */
 export const EVENT_FINISHED = "overlay:finished";
@@ -74,6 +82,10 @@ export interface Task {
 export interface AppSettings {
   soundOn: boolean;
   colorMode: "dark" | "light";
+  /** Whether the overlay shows the countdown digits. */
+  showDigits: boolean;
+  /** Countdown duration in seconds (also the trigger lead time). */
+  countdownSeconds: number;
 }
 
 /** Config handed to the overlay window via localStorage before it opens. */
@@ -81,6 +93,15 @@ export interface OverlayConfig {
   themeId: string;
   soundOn: boolean;
   preview: boolean;
+  /** Whether the overlay shows the countdown digits. */
+  showDigits: boolean;
+  /** Countdown duration in seconds. */
+  countdownSeconds: number;
 }
 
-export const DEFAULT_SETTINGS: AppSettings = { soundOn: true, colorMode: "dark" };
+export const DEFAULT_SETTINGS: AppSettings = {
+  soundOn: true,
+  colorMode: "dark",
+  showDigits: true,
+  countdownSeconds: COUNTDOWN_SECONDS,
+};

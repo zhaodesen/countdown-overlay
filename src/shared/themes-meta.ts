@@ -63,6 +63,14 @@ export const THEME_META: ThemeMeta[] = [
     preview: "/themes/flame.webp",
   },
   {
+    id: "lowhp",
+    name: "红色警报",
+    category: "Alert",
+    swatch: ["#ff1a1a", "#4a0000"],
+    blurb: "低血量 · 呼吸红晕 · 心跳",
+    preview: "/themes/lowhp.webp",
+  },
+  {
     id: "frost",
     name: "冰霜",
     category: "Ice",
