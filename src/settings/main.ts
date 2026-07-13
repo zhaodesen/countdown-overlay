@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { listen } from "@tauri-apps/api/event";
@@ -15,6 +16,7 @@ import {
   AppSettings,
   EVENT_FINISHED,
   EVENT_SCHEDULE_FIRED,
+  EVENT_SCHEDULE_PAUSE,
   SchedulerFiredPayload,
   IntervalUnit,
   Task,
@@ -269,7 +271,7 @@ function setSound(enabled: boolean) {
   settings.soundOn = enabled;
   saveSettings(settings);
   renderSound();
-  if (syncNativeScheduler()) renderTasks();
+  syncNativeSettings();
 }
 
 soundToggle.addEventListener("click", () => setSound(!settings.soundOn));
@@ -282,7 +284,7 @@ function setShowDigits(enabled: boolean) {
   settings.showDigits = enabled;
   saveSettings(settings);
   renderDigits();
-  if (syncNativeScheduler()) renderTasks();
+  syncNativeSettings();
   toast(enabled ? "倒计时将显示数字" : "倒计时将隐藏数字");
 }
 
@@ -299,7 +301,7 @@ function setDuration(value: unknown) {
   saveSettings(settings);
   renderDuration();
   if (changed) {
-    if (syncNativeScheduler()) renderTasks();
+    syncNativeSettings();
     toast(`动画时长已设为 ${seconds} 秒`);
   }
 }
@@ -313,6 +315,120 @@ syncNativeTheme();
 renderSound();
 renderDigits();
 renderDuration();
+
+/* ---------------- Update check (GitHub Releases) ---------------- */
+const UPDATE_REPO = "zhaodesen/countdown-overlay";
+
+const appVersionEl = document.getElementById("appVersion");
+const updateStatusEl = document.getElementById("updateStatus");
+const checkUpdateBtn = document.getElementById("checkUpdate") as HTMLButtonElement | null;
+
+interface GithubAsset {
+  name: string;
+  browser_download_url: string;
+}
+interface GithubRelease {
+  tag_name: string;
+  html_url: string;
+  assets: GithubAsset[];
+}
+
+let appVersion = "0.0.0";
+let pendingUpdate: { version: string; url: string } | null = null;
+
+void getVersion()
+  .then((version) => {
+    appVersion = version;
+    if (appVersionEl) appVersionEl.textContent = `v${version}`;
+  })
+  .catch(() => {
+    if (appVersionEl) appVersionEl.textContent = "开发版";
+  });
+
+function setUpdateStatus(text: string) {
+  if (updateStatusEl) updateStatusEl.textContent = text;
+}
+
+function parseVersion(value: string): number[] {
+  return value
+    .replace(/^v/i, "")
+    .split(".")
+    .map((part) => parseInt(part, 10) || 0);
+}
+
+function isNewerVersion(remote: string, local: string): boolean {
+  const a = parseVersion(remote);
+  const b = parseVersion(local);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return false;
+}
+
+/** Pick the installer asset matching the current platform (mac → .dmg, windows → .msi/.exe). */
+function platformAsset(assets: GithubAsset[]): GithubAsset | null {
+  const isMac = document.documentElement.classList.contains("os-mac");
+  const suffixes = isMac ? [".dmg"] : [".msi", "-setup.exe", ".exe"];
+  for (const suffix of suffixes) {
+    const hit = assets.find((asset) => asset.name.toLowerCase().endsWith(suffix));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function openExternal(url: string) {
+  if (isTauri) {
+    void invoke("open_external", { url }).catch((error) => {
+      toast(`无法打开浏览器：${String(error)}`);
+    });
+  } else {
+    window.open(url, "_blank", "noopener");
+  }
+}
+
+async function checkForUpdates() {
+  if (!checkUpdateBtn) return;
+  // A found update turns the button into a download shortcut.
+  if (pendingUpdate) {
+    openExternal(pendingUpdate.url);
+    return;
+  }
+  checkUpdateBtn.disabled = true;
+  setUpdateStatus("正在检查…");
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`,
+      { headers: { Accept: "application/vnd.github+json" } }
+    );
+    if (response.status === 404) {
+      setUpdateStatus("暂无发布版本");
+      return;
+    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const release = (await response.json()) as GithubRelease;
+    if (!isNewerVersion(release.tag_name, appVersion)) {
+      setUpdateStatus(`已是最新版本（${release.tag_name}）`);
+      toast("当前已是最新版本");
+      return;
+    }
+    const asset = platformAsset(release.assets);
+    pendingUpdate = {
+      version: release.tag_name,
+      url: asset?.browser_download_url ?? release.html_url,
+    };
+    checkUpdateBtn.textContent = `下载 ${release.tag_name}`;
+    setUpdateStatus(`发现新版本 ${release.tag_name}`);
+    toast(`发现新版本 ${release.tag_name}，点击按钮下载`);
+  } catch (error) {
+    setUpdateStatus("检查失败，请稍后重试");
+    toast(`检查更新失败：${String(error)}`);
+  } finally {
+    checkUpdateBtn.disabled = false;
+  }
+}
+
+checkUpdateBtn?.addEventListener("click", () => void checkForUpdates());
 
 /* ---------------- Preview ball mode ----------------
    While a preview plays, the main window shrinks to a 50x50 "ball" showing
@@ -696,6 +812,7 @@ function renderTasks() {
       task.lastFiredFor = undefined;
       persist();
       renderTasks();
+      nativeTaskCall("tasks_set_enabled", { id: task.id, enabled: task.enabled });
     });
   });
   taskListEl.querySelectorAll<HTMLButtonElement>("[data-edit]").forEach((element) => {
@@ -703,9 +820,11 @@ function renderTasks() {
   });
   taskListEl.querySelectorAll<HTMLButtonElement>("[data-del]").forEach((element) => {
     element.addEventListener("click", () => {
-      tasks = tasks.filter((item) => item.id !== element.dataset.del);
+      const id = element.dataset.del!;
+      tasks = tasks.filter((item) => item.id !== id);
       persist();
       renderTasks();
+      nativeTaskCall("tasks_delete", { id });
       toast("已删除任务");
     });
   });
@@ -723,9 +842,10 @@ function escapeHtml(value: string): string {
   );
 }
 
+// localStorage keeps a mirror of the task list: it is the browser-preview
+// store and the one-time migration source for the native scheduler.
 function persist() {
   saveTasks(tasks);
-  syncNativeScheduler();
 }
 
 /* ---------------- Task dialog ---------------- */
@@ -969,6 +1089,7 @@ function submitTask() {
   else tasks.push(task);
   persist();
   renderTasks();
+  nativeTaskCall("tasks_upsert", { task });
   closeModal();
   toast(editingId ? "已保存修改" : "已创建任务");
 }
@@ -1054,57 +1175,36 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !modal.hidden) closeModal();
 });
 
-/* ---------------- Scheduler ---------------- */
-interface NativeScheduleEntry {
-  taskId: string;
-  fireAtMs: number;
-  themeId: string;
-  soundOn: boolean;
-  showDigits: boolean;
-  countdownSecs: number;
+/* ---------------- Scheduler bridge ----------------
+   Native builds: Rust owns the task list, the recurrence math, firing,
+   persistence and the lock/sleep pause semantics. The webview only mirrors
+   UI edits into Rust and pulls the authoritative list back for display. */
+
+function applyNativeTasks(list: Task[]) {
+  tasks = list;
+  saveTasks(tasks);
+  renderTasks();
 }
 
-function syncNativeScheduler(): boolean {
-  if (!isTauri) return false;
+function nativeTaskCall(command: string, args: Record<string, unknown> = {}) {
+  if (!isTauri) return;
+  void invoke<Task[]>(command, args)
+    .then(applyNativeTasks)
+    .catch((error) => console.warn(`Scheduler command ${command} failed:`, error));
+}
 
-  const now = Date.now();
-  const entries: NativeScheduleEntry[] = [];
-  let normalized = false;
-
-  for (const task of tasks) {
-    if (!task.enabled) continue;
-    let fireAt = nextFireEpoch(task, settings.countdownSeconds, now);
-    if (fireAt == null) continue;
-
-    if (task.type === "once" && fireAt <= now) {
-      task.enabled = false;
-      normalized = true;
-      continue;
-    }
-
-    if (task.type === "repeat" && task.lastFiredFor === fireAt) {
-      fireAt = nextFireEpoch(task, settings.countdownSeconds, fireAt + 1501);
-      if (fireAt == null) continue;
-    }
-
-    entries.push({
-      taskId: task.id,
-      fireAtMs: fireAt,
-      themeId: task.themeId,
+function syncNativeSettings() {
+  if (!isTauri) return;
+  void invoke("scheduler_set_settings", {
+    settings: {
+      leadSecs: settings.countdownSeconds,
       soundOn: settings.soundOn,
       showDigits: settings.showDigits,
-      countdownSecs: settings.countdownSeconds,
-    });
-  }
-
-  if (normalized) saveTasks(tasks);
-  void invoke("sync_scheduler", { entries }).catch((error) => {
-    console.warn("Unable to sync native scheduler:", error);
-  });
-  return normalized;
+    },
+  }).catch((error) => console.warn("Unable to sync scheduler settings:", error));
 }
 
-// Browser-only fallback. Native builds use the Rust deadline scheduler below.
+// Browser-only fallback. Native builds use the Rust scheduler above.
 let lastSchedulerCheckAt = Date.now();
 
 function schedulerTick() {
@@ -1147,14 +1247,27 @@ if (isTauri) {
     toast("倒计时结束，已返回控制台");
   });
   void listen<SchedulerFiredPayload>(EVENT_SCHEDULE_FIRED, ({ payload }) => {
-    const task = tasks.find((item) => item.id === payload.taskId);
-    if (!task) return;
-    task.lastFiredFor = payload.fireAtMs;
-    if (task.type === "once") task.enabled = false;
-    persist();
-    renderTasks();
-    toast(payload.opened ? `触发任务：${task.name}` : `任务触发失败：${task.name}`);
-  }).then(() => {
-    if (syncNativeScheduler()) renderTasks();
+    const name = tasks.find((item) => item.id === payload.taskId)?.name ?? "任务";
+    // Rust already updated its own state; just mirror it for display.
+    nativeTaskCall("tasks_all");
+    toast(
+      payload.skipped
+        ? `已跳过暂停期间错过的任务：${name}`
+        : payload.opened
+          ? `触发任务：${name}`
+          : `任务触发失败：${name}`
+    );
   });
+  void listen<boolean>(EVENT_SCHEDULE_PAUSE, ({ payload }) => {
+    if (!payload) toast("已解锁，任务调度已恢复");
+  });
+
+  // Adopt the persisted native task list (first run migrates the localStorage
+  // list), then hand the scheduler the current settings.
+  nativeTaskCall("tasks_bootstrap", { tasks });
+  syncNativeSettings();
+
+  // UI self-heal: mirror the native state even if a fired event was missed
+  // while this window's webview was frozen.
+  window.setInterval(() => nativeTaskCall("tasks_all"), 30_000);
 }

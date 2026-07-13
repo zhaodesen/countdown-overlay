@@ -1,12 +1,17 @@
-use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+mod scheduler;
+#[cfg(target_os = "macos")]
+mod session_mac;
+#[cfg(windows)]
+mod session_win;
+mod timebj;
+
+use std::time::{Duration, Instant};
 use tauri::{
     async_runtime::Mutex,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder,
 };
-use tokio::sync::Notify;
 
 /// Label used for the (single) overlay window. Kept as a constant so it is
 /// easy to reuse when we later support multi-monitor (one window per monitor).
@@ -14,49 +19,15 @@ const OVERLAY_LABEL: &str = "overlay";
 const TRAY_ID: &str = "main-tray";
 const TRAY_SHOW_MAIN_ID: &str = "tray-show-main";
 const TRAY_EXIT_APP_ID: &str = "tray-exit-app";
-const EVENT_SCHEDULE_FIRED: &str = "scheduler:fired";
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ScheduledTrigger {
-    task_id: String,
-    fire_at_ms: i64,
-    theme_id: String,
-    sound_on: bool,
-    #[serde(default = "default_show_digits")]
-    show_digits: bool,
-    #[serde(default = "default_countdown_secs")]
-    countdown_secs: u32,
-}
-
-fn default_show_digits() -> bool {
-    true
-}
-
-fn default_countdown_secs() -> u32 {
-    5
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SchedulerFiredPayload {
-    task_id: String,
-    fire_at_ms: i64,
-    opened: bool,
-}
-
-struct OverlayState {
+pub(crate) struct OverlayState {
     operation_lock: Mutex<()>,
-    schedule: Mutex<Vec<ScheduledTrigger>>,
-    schedule_changed: Notify,
 }
 
 impl Default for OverlayState {
     fn default() -> Self {
         Self {
             operation_lock: Mutex::new(()),
-            schedule: Mutex::new(Vec::new()),
-            schedule_changed: Notify::new(),
         }
     }
 }
@@ -70,12 +41,13 @@ fn show_main_window(app: &AppHandle) {
 }
 
 /// Create and show the full-screen, transparent, click-through overlay window
-/// on the primary monitor. Called from the settings window via `invoke`.
+/// on the primary monitor. Called from the settings window via `invoke` and
+/// from the native scheduler when a task fires.
 ///
 /// Notes for future multi-monitor support: iterate `app.available_monitors()`
 /// and build one overlay window per monitor with a label like
 /// `overlay-<index>`, positioning each at its monitor's origin.
-async fn show_overlay_window(
+pub(crate) async fn show_overlay_window(
     app: &AppHandle,
     state: &OverlayState,
     theme_id: &str,
@@ -159,6 +131,24 @@ async fn show_overlay_window(
     Ok(())
 }
 
+/// Open an https URL in the user's default browser. Used by the settings
+/// window's update check; restricted to https to keep the surface minimal.
+#[tauri::command]
+fn open_external(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") {
+        return Err("only https urls can be opened".to_string());
+    }
+    #[cfg(windows)]
+    let result = std::process::Command::new("rundll32.exe")
+        .args(["url.dll,FileProtocolHandler", &url])
+        .spawn();
+    #[cfg(target_os = "macos")]
+    let result = std::process::Command::new("open").arg(&url).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let result = std::process::Command::new("xdg-open").arg(&url).spawn();
+    result.map(|_| ()).map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 async fn show_overlay(
     app: AppHandle,
@@ -181,83 +171,20 @@ async fn show_overlay(
     .await
 }
 
-#[tauri::command]
-async fn sync_scheduler(
-    state: State<'_, OverlayState>,
-    mut entries: Vec<ScheduledTrigger>,
-) -> Result<(), String> {
-    entries.sort_by_key(|entry| entry.fire_at_ms);
-    *state.schedule.lock().await = entries;
-    state.schedule_changed.notify_one();
-    Ok(())
-}
-
-fn epoch_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64
-}
-
-async fn scheduler_loop(app: AppHandle) {
-    loop {
-        let state = app.state::<OverlayState>();
-        let schedule_changed = state.schedule_changed.notified();
-        let next = {
-            let schedule = state.schedule.lock().await;
-            schedule.first().cloned()
-        };
-
-        let Some(next) = next else {
-            schedule_changed.await;
-            continue;
-        };
-
-        let delay_ms = next.fire_at_ms.saturating_sub(epoch_ms());
-        if delay_ms > 0 {
-            tokio::select! {
-                _ = tokio::time::sleep(Duration::from_millis(delay_ms as u64)) => {},
-                _ = schedule_changed => continue,
-            }
-        }
-
-        let due = {
-            let now = epoch_ms();
-            let mut schedule = state.schedule.lock().await;
-            let first_pending = schedule.partition_point(|entry| entry.fire_at_ms <= now);
-            schedule.drain(..first_pending).collect::<Vec<_>>()
-        };
-
-        for trigger in due {
-            let opened = show_overlay_window(
-                &app,
-                state.inner(),
-                &trigger.theme_id,
-                trigger.sound_on,
-                false,
-                trigger.show_digits,
-                trigger.countdown_secs,
-            )
-            .await
-            .is_ok();
-            let _ = app.emit_to(
-                "main",
-                EVENT_SCHEDULE_FIRED,
-                SchedulerFiredPayload {
-                    task_id: trigger.task_id,
-                    fire_at_ms: trigger.fire_at_ms,
-                    opened,
-                },
-            );
-        }
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(OverlayState::default())
-        .invoke_handler(tauri::generate_handler![show_overlay, sync_scheduler])
+        .invoke_handler(tauri::generate_handler![
+            show_overlay,
+            open_external,
+            scheduler::tasks_bootstrap,
+            scheduler::tasks_all,
+            scheduler::tasks_upsert,
+            scheduler::tasks_set_enabled,
+            scheduler::tasks_delete,
+            scheduler::scheduler_set_settings
+        ])
         .setup(|app| {
             let show_item = MenuItem::with_id(
                 app,
@@ -297,8 +224,17 @@ pub fn run() {
             }
 
             tray.build(app)?;
-            let scheduler_app = app.handle().clone();
-            tauri::async_runtime::spawn(scheduler_loop(scheduler_app));
+
+            // Native scheduling authority: load the persisted store, start
+            // the deadline loop, and watch for session lock so the scheduler
+            // pauses while the workstation is locked.
+            app.manage(scheduler::load(app.handle()));
+            tauri::async_runtime::spawn(scheduler::scheduler_loop(app.handle().clone()));
+            #[cfg(windows)]
+            session_win::spawn(app.handle().clone());
+            #[cfg(target_os = "macos")]
+            session_mac::spawn(app.handle().clone());
+
             Ok(())
         })
         .on_window_event(|window, event| {

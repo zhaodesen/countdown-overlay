@@ -17,11 +17,15 @@ export function clampCountdownSeconds(value: unknown): number {
 /** Tauri event the overlay emits when its countdown is fully finished. */
 export const EVENT_FINISHED = "overlay:finished";
 export const EVENT_SCHEDULE_FIRED = "scheduler:fired";
+/** Emitted by the native scheduler when the lock/sleep pause state changes (payload: paused boolean). */
+export const EVENT_SCHEDULE_PAUSE = "scheduler:pause-changed";
 
 export interface SchedulerFiredPayload {
   taskId: string;
   fireAtMs: number;
   opened: boolean;
+  /** True when the trigger was long past due (machine slept through it) and no overlay was shown. */
+  skipped: boolean;
 }
 
 /** localStorage keys (shared across the two same-origin windows). */
